@@ -811,26 +811,6 @@ async def delete_custom_mode(req: DeleteCustomModeRequest) -> JSONResponse:
 
 # ========== 列映射配置API ==========
 
-class SaveColumnMappingRequest(BaseModel):
-    mapping_name: str = Field(min_length=1, max_length=64)
-    name_aliases: list[str] = Field(default_factory=list)
-    oncall_open_aliases: list[str] = Field(default_factory=list)
-    pending_ticket_aliases: list[str] = Field(default_factory=list)
-    new_issue_yesterday_aliases: list[str] = Field(default_factory=list)
-    governance_issue_aliases: list[str] = Field(default_factory=list)
-    kernel_issue_aliases: list[str] = Field(default_factory=list)
-    consult_issue_aliases: list[str] = Field(default_factory=list)
-    escalation_help_aliases: list[str] = Field(default_factory=list)
-    issue_ticket_output_aliases: list[str] = Field(default_factory=list)
-    requirement_ticket_output_aliases: list[str] = Field(default_factory=list)
-    wiki_output_aliases: list[str] = Field(default_factory=list)
-    analysis_report_output_aliases: list[str] = Field(default_factory=list)
-
-
-class DeleteColumnMappingRequest(BaseModel):
-    mapping_id: int
-
-
 @app.get("/api/column-mapping/list")
 async def list_column_mappings() -> JSONResponse:
     """获取所有列映射配置。"""
