@@ -437,6 +437,21 @@
         result.style.display = "block";
         hideWelcome();  // 隐藏欢迎界面
         
+        // 显示数据库入库状态
+        const dbStatus = document.getElementById("db-status");
+        if (dbStatus) {
+          if (data.saved_to_db) {
+            dbStatus.style.display = "block";
+            dbStatus.innerHTML = `<span style="color:#22c55e;">✓ 数据已入库</span> (会话ID: ${data.session_id || '-'})`;
+          } else if (data.db_error) {
+            dbStatus.style.display = "block";
+            dbStatus.innerHTML = `<span style="color:#f87171;">⚠ 入库失败</span>: ${data.db_error}`;
+          } else {
+            dbStatus.style.display = "block";
+            dbStatus.innerHTML = `<span style="color:#f59e0b;">ℹ 未入库</span> (未配置数据库)`;
+          }
+        }
+        
         // 更新列匹配状态显示
         if (data.columns) {
           latestColumns = data.columns;
