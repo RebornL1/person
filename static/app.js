@@ -989,16 +989,6 @@
       }
     }
 
-    // 清除日期筛选
-    clearDateFilterBtn.addEventListener("click", () => {
-      startDateInput.value = "";
-      endDateInput.value = "";
-      document.querySelectorAll(".quick-date-btn").forEach(b => b.classList.remove("active"));
-      initHistorySection();
-    });
-
-    applyDateFilterBtn.addEventListener("click", applyDateFilter);
-
     function renderUploadHistory(items) {
       uploadHistoryList.innerHTML = items
         .map((item) => {
@@ -1122,10 +1112,6 @@
         historyStatus.textContent = "网络异常，删除失败";
       }
     }
-
-    // 绑定按钮事件
-    loadLatestBtn.addEventListener("click", loadLatestData);
-    refreshHistoryBtn.addEventListener("click", initHistorySection);
 
     // ========== 欢迎界面相关函数 ==========
     function hideWelcome() {
