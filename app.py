@@ -7,146 +7,41 @@ from __future__ import annotations
 import io
 import json
 import os
-import re
-from datetime import datetime
+from datetime import datetime, date as date_type
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
 from psycopg import connect
 from psycopg import sql
-
-from datetime import date as date_type
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+# 导入本地模块
+from models import (
+    DEFAULT_WEIGHTS, DEFAULT_COLUMN_ALIASES, WEIGHT_LABELS,
+    SaveCustomModeRequest, DeleteCustomModeRequest,
+    SaveColumnMappingRequest, DeleteColumnMappingRequest,
+)
+from utils import (
+    MAX_PREVIEW_ROWS, MAX_SAVE_ROWS,
+    UPLOAD_SESSIONS_TABLE, UPLOAD_DATA_TABLE, COLUMN_MAPPING_TABLE,
+    normalize_col_name, find_col, to_float, parse_json_value,
+    slugify_mode_name, infer_sql_type, normalize_cell_for_insert,
+    dataframe_to_preview,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
 app = FastAPI(title="Excel 分析")
 
-MAX_PREVIEW_ROWS = 200
-UPLOAD_SESSIONS_TABLE = "upload_sessions"
-UPLOAD_DATA_TABLE = "upload_data"
-COLUMN_MAPPING_TABLE = "column_mappings"
-DEFAULT_WEIGHTS = {
-    "oncall_open": 0.9,
-    "pending_ticket": 0.8,
-    "new_issue_yesterday": 1.4,
-    "governance_issue": 1.0,
-    "kernel_issue": 1.35,
-    "consult_issue": 0.85,
-    "escalation_help": -0.6,
-    "issue_ticket_output": 1.25,
-    "requirement_ticket_output": 1.05,
-    "wiki_output": 1.3,
-    "analysis_report_output": 1.2,
-}
 
-# 默认列映射配置 - 每个指标对应的列名别名列表
-DEFAULT_COLUMN_ALIASES = {
-    "name": ["姓名", "名字", "人员", "同学", "name", "员工姓名"],
-    "oncall_open": ["oncall接单未闭环的数量", "oncall未闭环", "接单未闭环", "oncall_open", "未闭环数量"],
-    "pending_ticket": ["名下的待处理工单数", "待处理工单", "待处理工单数", "pending_ticket", "名下工单"],
-    "new_issue_yesterday": ["昨日新增多少个问题", "昨日新增问题", "昨日新增", "new_issue_yesterday", "new_issues"],
-    "governance_issue": ["多少个管控的问题", "管控问题", "管控", "governance_issue", "管控类问题"],
-    "kernel_issue": ["多少个内核的问题", "内核问题", "内核", "kernel_issue", "内核类问题"],
-    "consult_issue": ["多少个咨询问题", "咨询问题", "咨询", "consult_issue", "咨询类问题"],
-    "escalation_help": ["透传求助了多少个", "透传求助", "透传", "escalation_help", "求助数量"],
-    "issue_ticket_output": ["问题单数量", "提了多少问题单", "问题单", "issue_ticket_output", "问题单产出"],
-    "requirement_ticket_output": ["需求单数量", "提了多少需求单", "需求单", "requirement_ticket_output", "需求单产出"],
-    "wiki_output": ["wiki输出数量", "输出多少wiki", "wiki", "wiki_output", "wiki产出"],
-    "analysis_report_output": ["问题分析报告数量", "输出多少问题分析报告", "分析报告", "analysis_report_output", "报告产出"],
-}
-
-MAX_SAVE_ROWS = 5000
-
-
-def _normalize_col_name(name: str) -> str:
-    return str(name).replace(" ", "").replace("\t", "").replace("(", "").replace(")", "").replace("（", "").replace("）", "")
-
-
-def _find_col(columns: list[str], aliases: list[str]) -> str | None:
-    normalized = {col: _normalize_col_name(col) for col in columns}
-    for alias in aliases:
-        key = _normalize_col_name(alias)
-        for col, col_key in normalized.items():
-            if col_key == key or key in col_key:
-                return col
-    return None
-
-
-def _to_float(value: Any) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-class SaveCustomModeRequest(BaseModel):
-    mode_name: str = Field(min_length=1, max_length=64)
-    selected_columns: list[str] = Field(default_factory=list)
-    rows: list[dict[str, Any]] = Field(default_factory=list)
-
-
-class DeleteCustomModeRequest(BaseModel):
-    mode_name: str = Field(min_length=1, max_length=64)
-
-
-def _parse_json_value(value: Any) -> Any:
-    """安全解析 JSON 值，兼容已解析和未解析的情况。"""
-    if value is None:
-        return None
-    if isinstance(value, (dict, list)):
-        # psycopg 已自动解析 JSONB
-        return value
-    if isinstance(value, (str, bytes, bytearray)):
-        # 需要手动解析
-        return json.loads(value)
-    return value
-
-
-def _slugify_mode_name(mode_name: str) -> str:
-    """将模式名转换为安全的SQL表名。"""
-    slug = re.sub(r"[^a-zA-Z0-9_]+", "_", mode_name.strip().lower())
-    slug = slug.strip("_")
-    if not slug:
-        slug = "custom_mode"
-    return slug[:48]
-
-
-def _infer_sql_type(values: list[Any]) -> str:
-    non_empty = [v for v in values if str(v).strip() != ""]
-    if not non_empty:
-        return "TEXT"
-    numeric_count = 0
-    for v in non_empty:
-        try:
-            float(v)
-            numeric_count += 1
-        except (TypeError, ValueError):
-            pass
-    if numeric_count == len(non_empty):
-        return "DOUBLE PRECISION"
-    return "TEXT"
-
-
-def _normalize_cell_for_insert(value: Any, sql_type: str) -> Any:
-    if value is None or str(value).strip() == "":
-        return None
-    if sql_type == "DOUBLE PRECISION":
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return None
-    return str(value)
-
-
-def _get_pg_dsn() -> str:
+def get_pg_dsn() -> str:
+    """获取PostgreSQL连接串，如果未配置则抛出异常"""
     dsn = os.getenv("PG_DSN", "").strip()
     if not dsn:
         raise HTTPException(status_code=500, detail="缺少 PG_DSN 环境变量，请先配置 PostgreSQL 连接串")
@@ -332,7 +227,7 @@ def _get_column_aliases_from_config(mapping_config: dict[str, Any] | None) -> di
     for key in DEFAULT_COLUMN_ALIASES.keys():
         config_key = f"{key}_aliases"
         if config_key in mapping_config:
-            aliases[key] = _parse_json_value(mapping_config[config_key]) or []
+            aliases[key] = parse_json_value(mapping_config[config_key]) or []
         else:
             aliases[key] = DEFAULT_COLUMN_ALIASES[key]
     return aliases
@@ -349,22 +244,22 @@ def _build_workload_analysis(
     if column_aliases is None:
         column_aliases = DEFAULT_COLUMN_ALIASES.copy()
     
-    name_col = _find_col(cols, column_aliases.get("name", ["姓名"]))
+    name_col = find_col(cols, column_aliases.get("name", ["姓名"]))
     if not name_col:
         return None
 
     col_map = {
-        "oncall_open": _find_col(cols, column_aliases.get("oncall_open", ["oncall接单未闭环的数量"])),
-        "pending_ticket": _find_col(cols, column_aliases.get("pending_ticket", ["名下的待处理工单数"])),
-        "new_issue_yesterday": _find_col(cols, column_aliases.get("new_issue_yesterday", ["昨日新增多少个问题"])),
-        "governance_issue": _find_col(cols, column_aliases.get("governance_issue", ["多少个管控的问题"])),
-        "kernel_issue": _find_col(cols, column_aliases.get("kernel_issue", ["多少个内核的问题"])),
-        "consult_issue": _find_col(cols, column_aliases.get("consult_issue", ["多少个咨询问题"])),
-        "escalation_help": _find_col(cols, column_aliases.get("escalation_help", ["透传求助了多少个"])),
-        "issue_ticket_output": _find_col(cols, column_aliases.get("issue_ticket_output", ["问题单数量"])),
-        "requirement_ticket_output": _find_col(cols, column_aliases.get("requirement_ticket_output", ["需求单数量"])),
-        "wiki_output": _find_col(cols, column_aliases.get("wiki_output", ["wiki输出数量"])),
-        "analysis_report_output": _find_col(cols, column_aliases.get("analysis_report_output", ["问题分析报告数量"])),
+        "oncall_open": find_col(cols, column_aliases.get("oncall_open", ["oncall接单未闭环的数量"])),
+        "pending_ticket": find_col(cols, column_aliases.get("pending_ticket", ["名下的待处理工单数"])),
+        "new_issue_yesterday": find_col(cols, column_aliases.get("new_issue_yesterday", ["昨日新增多少个问题"])),
+        "governance_issue": find_col(cols, column_aliases.get("governance_issue", ["多少个管控的问题"])),
+        "kernel_issue": find_col(cols, column_aliases.get("kernel_issue", ["多少个内核的问题"])),
+        "consult_issue": find_col(cols, column_aliases.get("consult_issue", ["多少个咨询问题"])),
+        "escalation_help": find_col(cols, column_aliases.get("escalation_help", ["透传求助了多少个"])),
+        "issue_ticket_output": find_col(cols, column_aliases.get("issue_ticket_output", ["问题单数量"])),
+        "requirement_ticket_output": find_col(cols, column_aliases.get("requirement_ticket_output", ["需求单数量"])),
+        "wiki_output": find_col(cols, column_aliases.get("wiki_output", ["wiki输出数量"])),
+        "analysis_report_output": find_col(cols, column_aliases.get("analysis_report_output", ["问题分析报告数量"])),
     }
 
     weights = DEFAULT_WEIGHTS.copy()
@@ -374,7 +269,7 @@ def _build_workload_analysis(
         person = str(row.get(name_col, "")).strip()
         if not person:
             continue
-        metrics = {k: _to_float(row.get(v, 0)) if v else 0.0 for k, v in col_map.items()}
+        metrics = {k: to_float(row.get(v, 0)) if v else 0.0 for k, v in col_map.items()}
         daily_issue_total = metrics["governance_issue"] + metrics["kernel_issue"] + metrics["consult_issue"]
         score = sum(metrics[k] * w for k, w in weights.items())
         item = {
@@ -570,7 +465,7 @@ async def get_upload_history(
     end_date: date_type | None = Query(None, description="结束日期，格式 YYYY-MM-DD"),
 ) -> JSONResponse:
     """获取历史上传记录，按日期分组，支持日期范围筛选。"""
-    dsn = _get_pg_dsn()
+    dsn = get_pg_dsn()
     try:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
@@ -643,7 +538,7 @@ async def get_upload_history(
 @app.get("/api/upload/latest")
 async def get_latest_upload() -> JSONResponse:
     """获取最新一次上传的数据。"""
-    dsn = _get_pg_dsn()
+    dsn = get_pg_dsn()
     try:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
@@ -661,7 +556,7 @@ async def get_latest_upload() -> JSONResponse:
                     return JSONResponse(content={"ok": False, "message": "暂无历史数据"})
 
                 session_id = session[0]
-                columns = _parse_json_value(session[6]) or []
+                columns = parse_json_value(session[6]) or []
 
                 # 获取该会话的所有数据行
                 cur.execute(
@@ -674,7 +569,7 @@ async def get_latest_upload() -> JSONResponse:
                     (session_id,)
                 )
                 raw_rows = cur.fetchall()
-                data_rows = [_parse_json_value(r[0]) for r in raw_rows if r[0]]
+                data_rows = [parse_json_value(r[0]) for r in raw_rows if r[0]]
 
                 if not data_rows:
                     return JSONResponse(content={"ok": False, "message": "会话数据为空"})
@@ -700,7 +595,7 @@ async def get_latest_upload() -> JSONResponse:
 @app.get("/api/upload/session/{session_id}")
 async def get_upload_session(session_id: int) -> JSONResponse:
     """获取指定会话的数据。"""
-    dsn = _get_pg_dsn()
+    dsn = get_pg_dsn()
     try:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
@@ -717,7 +612,7 @@ async def get_upload_session(session_id: int) -> JSONResponse:
                 if not session:
                     raise HTTPException(status_code=404, detail="会话不存在")
 
-                columns = _parse_json_value(session[6]) or []
+                columns = parse_json_value(session[6]) or []
 
                 # 获取数据行
                 cur.execute(
@@ -730,7 +625,7 @@ async def get_upload_session(session_id: int) -> JSONResponse:
                     (session_id,)
                 )
                 raw_rows = cur.fetchall()
-                data_rows = [_parse_json_value(r[0]) for r in raw_rows if r[0]]
+                data_rows = [parse_json_value(r[0]) for r in raw_rows if r[0]]
 
                 if not data_rows:
                     raise HTTPException(status_code=404, detail="会话数据为空")
@@ -758,7 +653,7 @@ async def get_upload_session(session_id: int) -> JSONResponse:
 @app.post("/api/upload/delete/{session_id}")
 async def delete_upload_session(session_id: int) -> JSONResponse:
     """删除指定上传会话及其数据。"""
-    dsn = _get_pg_dsn()
+    dsn = get_pg_dsn()
     try:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
@@ -795,9 +690,9 @@ async def save_custom_mode(req: SaveCustomModeRequest) -> JSONResponse:
     if missing:
         raise HTTPException(status_code=400, detail=f"列不存在: {missing}")
 
-    table_name = f"custom_mode_{_slugify_mode_name(req.mode_name)}"
+    table_name = f"custom_mode_{slugify_mode_name(req.mode_name)}"
     column_types = {
-        col: _infer_sql_type([row.get(col) for row in req.rows])
+        col: infer_sql_type([row.get(col) for row in req.rows])
         for col in selected_columns
     }
 
@@ -837,7 +732,7 @@ async def save_custom_mode(req: SaveCustomModeRequest) -> JSONResponse:
                 for row in req.rows:
                     row_values = [req.mode_name]
                     for col in selected_columns:
-                        row_values.append(_normalize_cell_for_insert(row.get(col), column_types[col]))
+                        row_values.append(normalize_cell_for_insert(row.get(col), column_types[col]))
                     values_batch.append(tuple(row_values))
                 cur.executemany(insert_stmt, values_batch)
                 conn.commit()
@@ -857,7 +752,7 @@ async def save_custom_mode(req: SaveCustomModeRequest) -> JSONResponse:
 
 @app.get("/api/custom-mode/list")
 async def list_custom_modes() -> JSONResponse:
-    dsn = _get_pg_dsn()
+    dsn = get_pg_dsn()
     try:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
@@ -899,8 +794,8 @@ async def list_custom_modes() -> JSONResponse:
 
 @app.post("/api/custom-mode/delete")
 async def delete_custom_mode(req: DeleteCustomModeRequest) -> JSONResponse:
-    dsn = _get_pg_dsn()
-    table_name = f"custom_mode_{_slugify_mode_name(req.mode_name)}"
+    dsn = get_pg_dsn()
+    table_name = f"custom_mode_{slugify_mode_name(req.mode_name)}"
     try:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
@@ -939,7 +834,7 @@ class DeleteColumnMappingRequest(BaseModel):
 @app.get("/api/column-mapping/list")
 async def list_column_mappings() -> JSONResponse:
     """获取所有列映射配置。"""
-    dsn = _get_pg_dsn()
+    dsn = get_pg_dsn()
     try:
         with connect(dsn) as conn:
             _ensure_upload_tables_exist(conn)
@@ -965,18 +860,18 @@ async def list_column_mappings() -> JSONResponse:
                         "created_at": r[3].isoformat() if r[3] else None,
                         "updated_at": r[4].isoformat() if r[4] else None,
                         "aliases": {
-                            "name": _parse_json_value(r[5]) or [],
-                            "oncall_open": _parse_json_value(r[6]) or [],
-                            "pending_ticket": _parse_json_value(r[7]) or [],
-                            "new_issue_yesterday": _parse_json_value(r[8]) or [],
-                            "governance_issue": _parse_json_value(r[9]) or [],
-                            "kernel_issue": _parse_json_value(r[10]) or [],
-                            "consult_issue": _parse_json_value(r[11]) or [],
-                            "escalation_help": _parse_json_value(r[12]) or [],
-                            "issue_ticket_output": _parse_json_value(r[13]) or [],
-                            "requirement_ticket_output": _parse_json_value(r[14]) or [],
-                            "wiki_output": _parse_json_value(r[15]) or [],
-                            "analysis_report_output": _parse_json_value(r[16]) or [],
+                            "name": parse_json_value(r[5]) or [],
+                            "oncall_open": parse_json_value(r[6]) or [],
+                            "pending_ticket": parse_json_value(r[7]) or [],
+                            "new_issue_yesterday": parse_json_value(r[8]) or [],
+                            "governance_issue": parse_json_value(r[9]) or [],
+                            "kernel_issue": parse_json_value(r[10]) or [],
+                            "consult_issue": parse_json_value(r[11]) or [],
+                            "escalation_help": parse_json_value(r[12]) or [],
+                            "issue_ticket_output": parse_json_value(r[13]) or [],
+                            "requirement_ticket_output": parse_json_value(r[14]) or [],
+                            "wiki_output": parse_json_value(r[15]) or [],
+                            "analysis_report_output": parse_json_value(r[16]) or [],
                         }
                     })
     except Exception as e:
@@ -998,7 +893,7 @@ async def get_default_column_mapping() -> JSONResponse:
 @app.post("/api/column-mapping/save")
 async def save_column_mapping(req: SaveColumnMappingRequest) -> JSONResponse:
     """保存列映射配置。"""
-    dsn = _get_pg_dsn()
+    dsn = get_pg_dsn()
     try:
         with connect(dsn) as conn:
             _ensure_upload_tables_exist(conn)
@@ -1091,7 +986,7 @@ async def save_column_mapping(req: SaveColumnMappingRequest) -> JSONResponse:
 @app.post("/api/column-mapping/delete")
 async def delete_column_mapping(req: DeleteColumnMappingRequest) -> JSONResponse:
     """删除列映射配置（不能删除默认配置）。"""
-    dsn = _get_pg_dsn()
+    dsn = get_pg_dsn()
     try:
         with connect(dsn) as conn:
             _ensure_upload_tables_exist(conn)
@@ -1147,33 +1042,6 @@ async def suggest_column_mapping() -> JSONResponse:
             "analysis_report_output": "分析报告产出",
         }
     })
-
-
-# 示例模板数据（用于首次访问展示）
-SAMPLE_TEMPLATE_DATA = [
-    {"姓名": "张三", "oncall接单未闭环的数量": 3, "名下的待处理工单数": 5, "昨日新增多少个问题": 2, "多少个管控的问题": 1, "多少个内核的问题": 3, "多少个咨询问题": 2, "透传求助了多少个": 1, "问题单数量": 2, "需求单数量": 1, "wiki输出数量": 3, "问题分析报告数量": 1},
-    {"姓名": "李四", "oncall接单未闭环的数量": 2, "名下的待处理工单数": 3, "昨日新增多少个问题": 1, "多少个管控的问题": 2, "多少个内核的问题": 2, "多少个咨询问题": 1, "透传求助了多少个": 2, "问题单数量": 3, "需求单数量": 2, "wiki输出数量": 2, "问题分析报告数量": 2},
-    {"姓名": "王五", "oncall接单未闭环的数量": 4, "名下的待处理工单数": 6, "昨日新增多少个问题": 3, "多少个管控的问题": 1, "多少个内核的问题": 4, "多少个咨询问题": 3, "透传求助了多少个": 0, "问题单数量": 4, "需求单数量": 1, "wiki输出数量": 4, "问题分析报告数量": 1},
-    {"姓名": "赵六", "oncall接单未闭环的数量": 1, "名下的待处理工单数": 2, "昨日新增多少个问题": 1, "多少个管控的问题": 3, "多少个内核的问题": 1, "多少个咨询问题": 2, "透传求助了多少个": 3, "问题单数量": 1, "需求单数量": 3, "wiki输出数量": 1, "问题分析报告数量": 0},
-    {"姓名": "钱七", "oncall接单未闭环的数量": 5, "名下的待处理工单数": 8, "昨日新增多少个问题": 4, "多少个管控的问题": 2, "多少个内核的问题": 5, "多少个咨询问题": 2, "透传求助了多少个": 4, "问题单数量": 2, "需求单数量": 0, "wiki输出数量": 2, "问题分析报告数量": 1},
-]
-
-
-def _get_template_payload() -> dict[str, Any]:
-    """生成默认模板数据的响应payload"""
-    df = pd.DataFrame(SAMPLE_TEMPLATE_DATA)
-    payload = _dataframe_to_payload(df)
-    payload["all_rows"] = SAMPLE_TEMPLATE_DATA
-    payload["all_rows_truncated"] = False
-    payload["is_template"] = True
-    payload["template_message"] = "这是示例数据，请上传您的Excel文件查看实际分析结果"
-    return payload
-
-
-@app.get("/api/template")
-async def get_template_data() -> JSONResponse:
-    """获取默认模板数据（用于首次访问展示）"""
-    return JSONResponse(content=_get_template_payload())
 
 
 @app.get("/", response_class=HTMLResponse)

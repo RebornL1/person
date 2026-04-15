@@ -1018,6 +1018,126 @@
       font-size: 0.75rem;
       margin-left: 0.3rem;
     }
+    
+    /* ========== 欢迎引导界面 ========== */
+    .welcome-section {
+      border: 1px solid rgba(61,139,253,0.2);
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(26,35,50,0.7) 0%, rgba(10,14,20,0.8) 100%);
+      padding: 1.2rem;
+      margin-top: 1rem;
+    }
+    .welcome-title {
+      font-size: 1.1rem;
+      color: #9bc0ff;
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .welcome-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+      line-height: 1.6;
+    }
+    .template-preview {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    @media (max-width: 700px) {
+      .template-preview { grid-template-columns: 1fr; }
+    }
+    .template-card {
+      border: 1px solid rgba(61,139,253,0.15);
+      border-radius: 12px;
+      background: rgba(17, 26, 37, 0.6);
+      padding: 0.8rem;
+    }
+    .template-card h4 {
+      font-size: 0.9rem;
+      color: #d3deef;
+      margin: 0 0 0.5rem;
+    }
+    .template-card p {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+    .template-example {
+      border: 1px solid rgba(61,139,253,0.1);
+      border-radius: 8px;
+      background: rgba(10,14,20,0.5);
+      padding: 0.6rem;
+      margin-top: 0.6rem;
+      overflow-x: auto;
+    }
+    .template-example table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.72rem;
+    }
+    .template-example th, .template-example td {
+      border: 1px solid rgba(61,139,253,0.1);
+      padding: 0.25rem 0.4rem;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .template-example th {
+      background: rgba(61,139,253,0.1);
+      color: #9bc0ff;
+    }
+    .template-example td {
+      color: var(--muted);
+    }
+    .quick-start-btns {
+      display: flex;
+      gap: 0.6rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+    .quick-start-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.6rem 1rem;
+      border: 1px solid rgba(61,139,253,0.3);
+      background: rgba(61,139,253,0.15);
+      color: #cfe1ff;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .quick-start-btn:hover {
+      background: rgba(61,139,253,0.25);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    .quick-start-btn .icon {
+      font-size: 1.2rem;
+    }
+    .template-fields-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: 0.5rem;
+    }
+    .template-field {
+      font-size: 0.72rem;
+      padding: 0.2rem 0.45rem;
+      background: rgba(61,139,253,0.1);
+      border-radius: 6px;
+      color: #9bc0ff;
+      border: 1px solid rgba(61,139,253,0.15);
+    }
+    .template-field.required {
+      border-color: rgba(34,197,94,0.3);
+      background: rgba(34,197,94,0.1);
+      color: #22c55e;
+    }
   </style>
 </head>
 <body>
@@ -1156,6 +1276,83 @@
     </label>
     <div class="err" id="err"></div>
     <div class="loading" id="loading">正在解析并计算工作量模型…</div>
+
+    <!-- 欢迎引导界面（未上传时显示） -->
+    <section id="welcome-section" class="welcome-section">
+      <div class="welcome-title">
+        <span>👋</span>
+        <span>欢迎使用工作量分析平台</span>
+      </div>
+      <div class="welcome-desc">
+        上传包含工作量数据的 Excel 文件，系统将自动计算综合评分、风险分层并生成改进建议。
+        下面是标准模板格式，您也可以根据实际需求调整列名。
+      </div>
+      
+      <div class="template-preview">
+        <div class="template-card">
+          <h4>📊 必填字段</h4>
+          <p>以下字段必须包含，否则无法进行工作量分析：</p>
+          <div class="template-fields-list">
+            <span class="template-field required">姓名</span>
+            <span class="template-field required">oncall未闭环</span>
+            <span class="template-field required">待处理工单</span>
+            <span class="template-field required">昨日新增问题</span>
+          </div>
+        </div>
+        
+        <div class="template-card">
+          <h4>📈 分析指标字段</h4>
+          <p>用于计算工作量评分和风险分层：</p>
+          <div class="template-fields-list">
+            <span class="template-field">管控问题</span>
+            <span class="template-field">内核问题</span>
+            <span class="template-field">咨询问题</span>
+            <span class="template-field">透传求助</span>
+          </div>
+        </div>
+        
+        <div class="template-card">
+          <h4>🏆 产出指标字段</h4>
+          <p>正向加分项，鼓励知识沉淀：</p>
+          <div class="template-fields-list">
+            <span class="template-field">问题单</span>
+            <span class="template-field">需求单</span>
+            <span class="template-field">wiki</span>
+            <span class="template-field">分析报告</span>
+          </div>
+        </div>
+        
+        <div class="template-card">
+          <h4>📋 标准列名对照</h4>
+          <p>系统自动识别以下列名（可配置自定义）：</p>
+          <div class="template-example">
+            <table>
+              <tr><th>指标</th><th>标准列名</th><th>可识别别名</th></tr>
+              <tr><td>姓名</td><td>姓名</td><td>名字、人员、同学</td></tr>
+              <tr><td>oncall</td><td>oncall接单未闭环的数量</td><td>oncall未闭环</td></tr>
+              <tr><td>工单</td><td>名下的待处理工单数</td><td>待处理工单</td></tr>
+              <tr><td>内核</td><td>多少个内核的问题</td><td>内核问题</td></tr>
+              <tr><td>透传</td><td>透传求助了多少个</td><td>透传求助</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <div class="quick-start-btns">
+        <button type="button" class="quick-start-btn" id="load-sample-btn">
+          <span class="icon">📁</span>
+          <span>加载示例数据</span>
+        </button>
+        <button type="button" class="quick-start-btn" id="download-template-btn">
+          <span class="icon">📥</span>
+          <span>下载空白模板</span>
+        </button>
+        <button type="button" class="quick-start-btn" id="load-latest-quick-btn">
+          <span class="icon">🔄</span>
+          <span>加载历史数据</span>
+        </button>
+      </div>
+    </section>
 
     <div id="result" style="display:none">
       <section>
@@ -1378,6 +1575,131 @@
     let latestColumns = [];
     let currentMappingId = null;
     let savedMappings = [];
+
+    // ========== 欢迎引导界面功能 ==========
+    const welcomeSection = document.getElementById("welcome-section");
+    const loadSampleBtn = document.getElementById("load-sample-btn");
+    const downloadTemplateBtn = document.getElementById("download-template-btn");
+    const loadLatestQuickBtn = document.getElementById("load-latest-quick-btn");
+
+    // 示例数据（内置）
+    const SAMPLE_DATA = {
+      columns: ["姓名", "oncall接单未闭环的数量", "名下的待处理工单数", "昨日新增多少个问题", 
+                "多少个管控的问题", "多少个内核的问题", "多少个咨询问题", "透传求助了多少个",
+                "问题单数量", "需求单数量", "wiki输出数量", "问题分析报告数量"],
+      rows: [
+        {"姓名": "张三", "oncall接单未闭环的数量": 3, "名下的待处理工单数": 5, "昨日新增多少个问题": 2, 
+         "多少个管控的问题": 1, "多少个内核的问题": 2, "多少个咨询问题": 1, "透传求助了多少个": 1,
+         "问题单数量": 2, "需求单数量": 1, "wiki输出数量": 3, "问题分析报告数量": 1},
+        {"姓名": "李四", "oncall接单未闭环的数量": 2, "名下的待处理工单数": 3, "昨日新增多少个问题": 1,
+         "多少个管控的问题": 2, "多少个内核的问题": 1, "多少个咨询问题": 2, "透传求助了多少个": 2,
+         "问题单数量": 1, "需求单数量": 2, "wiki输出数量": 2, "问题分析报告数量": 0},
+        {"姓名": "王五", "oncall接单未闭环的数量": 5, "名下的待处理工单数": 8, "昨日新增多少个问题": 3,
+         "多少个管控的问题": 1, "多少个内核的问题": 3, "多少个咨询问题": 0, "透传求助了多少个": 4,
+         "问题单数量": 0, "需求单数量": 1, "wiki输出数量": 1, "问题分析报告数量": 0},
+        {"姓名": "赵六", "oncall接单未闭环的数量": 1, "名下的待处理工单数": 2, "昨日新增多少个问题": 0,
+         "多少个管控的问题": 0, "多少个内核的问题": 1, "多少个咨询问题": 3, "透传求助了多少个": 0,
+         "问题单数量": 3, "需求单数量": 2, "wiki输出数量": 5, "问题分析报告数量": 2},
+        {"姓名": "陈七", "oncall接单未闭环的数量": 4, "名下的待处理工单数": 6, "昨日新增多少个问题": 2,
+         "多少个管控的问题": 2, "多少个内核的问题": 2, "多少个咨询问题": 1, "透传求助了多少个": 3,
+         "问题单数量": 1, "需求单数量": 0, "wiki输出数量": 2, "问题分析报告数量": 1}
+      ]
+    };
+
+    // 加载示例数据
+    async function loadSampleData() {
+      clearError();
+      welcomeSection.style.display = "none";
+      loading.classList.add("show");
+      loading.textContent = "正在加载示例数据...";
+      
+      try {
+        // 使用本地示例文件
+        const res = await fetch("/samples/sample_10_people.xlsx");
+        if (!res.ok) {
+          // 如果本地文件不存在，使用内置数据模拟
+          const mockPayload = {
+            shape: { rows: SAMPLE_DATA.rows.length, cols: SAMPLE_DATA.columns.length },
+            columns: SAMPLE_DATA.columns,
+            preview_rows: SAMPLE_DATA.rows,
+            all_rows: SAMPLE_DATA.rows,
+            preview_truncated: false,
+            all_rows_truncated: false,
+            dtypes: {},
+            missing_counts: {},
+            numeric_describe: null,
+            workload_analysis: null
+          };
+          render(mockPayload);
+          result.style.display = "block";
+          loading.classList.remove("show");
+          return;
+        }
+        
+        // 将示例文件转换为FormData上传
+        const blob = await res.blob();
+        const file = new File([blob], "sample_10_people.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        
+        const fd = new FormData();
+        fd.append("file", file);
+        
+        const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
+        const data = await uploadRes.json().catch(() => ({}));
+        
+        if (!uploadRes.ok) {
+          showError(data.detail || `加载示例失败 (${uploadRes.status})`);
+          welcomeSection.style.display = "block";
+          return;
+        }
+        
+        clearError();
+        render(data);
+        result.style.display = "block";
+      } catch (e) {
+        showError("加载示例数据失败，请手动上传文件。");
+        welcomeSection.style.display = "block";
+      } finally {
+        loading.classList.remove("show");
+        loading.textContent = "正在解析并计算工作量模型…";
+      }
+    }
+
+    // 下载空白模板
+    function downloadTemplate() {
+      const templateContent = SAMPLE_DATA.columns.join(",") + "\n" +
+        SAMPLE_DATA.rows.map(row => SAMPLE_DATA.columns.map(col => row[col] || 0).join(",")).join("\n");
+      
+      const blob = new Blob([templateContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "工作量模板.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // 快速加载历史数据
+    async function loadLatestQuick() {
+      await loadLatestData();
+      if (result.style.display === "block") {
+        welcomeSection.style.display = "none";
+      }
+    }
+
+    // 显示/隐藏欢迎界面
+    function showWelcome() {
+      welcomeSection.style.display = "block";
+      result.style.display = "none";
+    }
+
+    function hideWelcome() {
+      welcomeSection.style.display = "none";
+    }
+
+    // 绑定欢迎界面按钮事件
+    loadSampleBtn.addEventListener("click", loadSampleData);
+    downloadTemplateBtn.addEventListener("click", downloadTemplate);
+    loadLatestQuickBtn.addEventListener("click", loadLatestQuick);
 
     // ========== 列映射配置功能 ==========
     const mappingSelect = document.getElementById("mapping-select");
@@ -1754,6 +2076,7 @@
         clearError();
         render(data);
         result.style.display = "block";
+        hideWelcome();  // 隐藏欢迎界面
         
         // 更新列匹配状态显示
         if (data.columns) {
@@ -2401,6 +2724,7 @@
         clearError();
         render(data);
         result.style.display = "block";
+        hideWelcome();  // 隐藏欢迎界面
         historyStatus.textContent = `已加载: ${data.session_info?.filename || "未知文件"} (${data.session_info?.upload_date || "-"})`;
       } catch (e) {
         showError("网络错误，加载历史数据失败。");
@@ -2414,7 +2738,7 @@
       clearError();
       result.style.display = "none";
       loading.classList.add("show");
-      loading.textContent = "正在加载最新历史数据?";
+      loading.textContent = "正在加载最新历史数据...";
       try {
         const res = await fetch("/api/upload/latest");
         const data = await res.json().catch(() => ({}));
@@ -2426,6 +2750,7 @@
         clearError();
         render(data);
         result.style.display = "block";
+        hideWelcome();  // 隐藏欢迎界面
         historyStatus.textContent = `已加载最新数据: ${data.session_info?.filename || "未知文件"} (${data.session_info?.upload_date || "-"})`;
         // 刷新历史列表
         await initHistorySection();
@@ -2463,52 +2788,14 @@
     window.addEventListener("DOMContentLoaded", () => {
       initHistorySection();
       loadColumnMappings();
-      
-      // 延迟检查是否有历史数据，如果没有则加载模板数据
-      setTimeout(async () => {
-        if (historySection.style.display === "none") {
-          // 没有历史数据，加载默认模板展示
-          await loadTemplateData();
-        } else {
+      // 延迟500ms后尝试自动加载最新数据
+      setTimeout(() => {
+        if (historySection.style.display !== "none") {
+          // 有历史数据时，不自动加载（用户可选择点击"加载最新数据"按钮）
           historyStatus.textContent = '有历史数据，可点击"加载最新数据"快速查看上次的分析结果。';
         }
       }, 500);
     });
-    
-    // 加载默认模板数据
-    async function loadTemplateData() {
-      clearError();
-      loading.classList.add("show");
-      loading.textContent = "正在加载示例数据...";
-      try {
-        const res = await fetch("/api/template");
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          showError(data.detail || `加载模板失败 (${res.status})`);
-          return;
-        }
-        clearError();
-        render(data);
-        result.style.display = "block";
-        
-        // 显示模板提示信息
-        if (data.is_template) {
-          const templateNotice = document.createElement("div");
-          templateNotice.className = "status-note";
-          templateNotice.style.cssText = "background:rgba(245,158,11,0.15);color:#f59e0b;padding:0.6rem;border-radius:8px;margin-top:0.5rem;";
-          templateNotice.innerHTML = `<span style="font-weight:500;">📌 示例数据</span>：${escapeHtml(data.template_message || "这是示例数据，请上传您的Excel文件查看实际分析结果")}`;
-          const firstSection = result.querySelector("section");
-          if (firstSection) {
-            firstSection.insertBefore(templateNotice, firstSection.firstChild.nextSibling);
-          }
-        }
-      } catch (e) {
-        showError("网络错误，加载示例数据失败。");
-      } finally {
-        loading.classList.remove("show");
-        loading.textContent = "正在解析并计算工作量模型…";
-      }
-    }
   </script>
 </body>
 </html>
