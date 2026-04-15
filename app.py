@@ -108,6 +108,10 @@ def _parse_json_value(value: Any) -> Any:
         # 需要手动解析
         return json.loads(value)
     return value
+
+
+def _slugify_mode_name(mode_name: str) -> str:
+    """将模式名转换为安全的SQL表名。"""
     slug = re.sub(r"[^a-zA-Z0-9_]+", "_", mode_name.strip().lower())
     slug = slug.strip("_")
     if not slug:
