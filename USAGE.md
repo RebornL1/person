@@ -15,7 +15,22 @@
 
 ## 首次安装
 
-在**项目根目录**（本仓库 `J1` 文件夹，或你克隆后的路径）执行：
+### 方式一：一键启动（推荐）
+
+项目提供了跨平台启动脚本，首次运行会自动创建虚拟环境并安装依赖：
+
+**Windows**：双击 `start.bat` 文件
+
+**macOS/Linux**：
+```bash
+./start.sh
+# 或
+python3 start.py
+```
+
+### 方式二：手动安装
+
+**macOS/Linux**：
 
 ```bash
 cd /path/to/J1
@@ -24,7 +39,16 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Windows（PowerShell）：
+**Windows (CMD)**：
+
+```cmd
+cd C:\path\to\J1
+python -m venv .venv
+.venv\Scripts\activate.bat
+pip install -r requirements.txt
+```
+
+**Windows (PowerShell)**：
 
 ```powershell
 cd C:\path\to\J1
@@ -65,25 +89,64 @@ Set-Content -Path .env -Value "PG_DSN=postgresql://<user>:<password>@127.0.0.1:5
 
 ---
 
-## 启动网页服务（最常用）
+## 启动网页服务
+
+### 方式一：使用启动脚本（最简单）
+
+**Windows**：双击 `start.bat`
+
+**macOS/Linux**：
+```bash
+./start.sh
+```
+
+启动脚本参数（可选）：
+```bash
+python3 start.py --host 127.0.0.1 --port 8080
+python3 start.py --no-reload   # 生产模式，禁用自动重载
+python3 start.py --install     # 仅安装依赖
+```
+
+### 方式二：手动启动
 
 **必须在项目根目录执行**，且建议先激活虚拟环境：
 
+**macOS/Linux**：
 ```bash
 cd /path/to/J1
 source .venv/bin/activate
 uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-- **`--reload`**：改代码后自动重载（仅开发环境使用）。
-- **`--host 127.0.0.1`**：只本机可访问；若需局域网访问可改为 `0.0.0.0`（注意防火墙与安全风险）。
-- **`--port 8000`**：端口可改，例如 `--port 8080`。
+**Windows (CMD)**：
+```cmd
+cd C:\path\to\J1
+.venv\Scripts\activate.bat
+uvicorn app:app --reload --host 127.0.0.1 --port 8000
+```
+
+**Windows (PowerShell)**：
+```powershell
+cd C:\path\to\J1
+.\.venv\Scripts\Activate.ps1
+uvicorn app:app --reload --host 127.0.0.1 --port 8000
+```
+
+参数说明：
+- **`--reload`**：改代码后自动重载（仅开发环境使用）
+- **`--host 127.0.0.1`**：只本机可访问；若需局域网访问可改为 `0.0.0.0`（注意防火墙与安全风险）
+- **`--port 8000`**：端口可改，例如 `--port 8080`
 
 **不激活 venv 时**，可直接指定解释器：
 
+**macOS/Linux**：
 ```bash
-cd /path/to/J1
-.venv/bin/uvicorn app:app --reload --host 127.0.0.1 --port 8000
+.venv/bin/python -m uvicorn app:app --reload --host 127.0.0.1 --port 8000
+```
+
+**Windows**：
+```cmd
+.venv\Scripts\python.exe -m uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
 启动成功后，终端会看到类似：`Uvicorn running on http://127.0.0.1:8000`。
@@ -205,6 +268,9 @@ cd /path/to/J1
 ```
 J1/
   app.py              # FastAPI 应用入口
+  start.py            # 跨平台启动脚本（Python）
+  start.bat           # Windows 快捷启动
+  start.sh            # macOS/Linux 快捷启动
   requirements.txt    # Python 依赖
   static/index.html   # 前端页面
   samples/            # 示例 Excel

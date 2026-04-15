@@ -24,13 +24,44 @@
 
 ## 快速开始
 
+### 方式一：一键启动（推荐）
+
+**Windows**：双击 `start.bat` 文件
+
+**macOS/Linux**：
 ```bash
-# 安装依赖
+# 方式1：双击 start.sh 或运行
+./start.sh
+
+# 方式2：直接运行Python脚本
+python3 start.py
+```
+
+首次运行会自动创建虚拟环境并安装依赖。
+
+### 方式二：手动安装
+
+**macOS/Linux**：
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+uvicorn app:app --reload --host 127.0.0.1 --port 8000
+```
 
-# 启动服务
+**Windows (CMD)**：
+```cmd
+python -m venv .venv
+.venv\Scripts\activate.bat
+pip install -r requirements.txt
+uvicorn app:app --reload --host 127.0.0.1 --port 8000
+```
+
+**Windows (PowerShell)**：
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -66,6 +97,9 @@ API 文档：http://127.0.0.1:8000/docs
 ```
 J1/
 ├── app.py              # FastAPI 应用入口
+├── start.py            # 跨平台启动脚本
+├── start.bat           # Windows 快捷启动
+├── start.sh            # macOS/Linux 快捷启动
 ├── requirements.txt    # Python 依赖
 ├── static/
 │   └── index.html      # 前端页面
