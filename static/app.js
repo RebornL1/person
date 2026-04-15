@@ -1,6 +1,7 @@
     // ========== 优雅粒子系统（减少数量，提升质感） ==========
     function createParticles() {
       const container = document.getElementById("particles");
+      if (!container) return;
       const colors = ["#3d8bfd", "#22c55e", "#a78bfa", "#f59e0b"];
       
       // 优雅发光粒子 - 只创建15个
@@ -47,16 +48,12 @@
     }
     
     // ========== 鼠标跟随光晕 ==========
-    const cursorGlow = document.getElementById("cursor-glow");
     let mouseX = 0, mouseY = 0;
     let glowX = 0, glowY = 0;
-    
-    document.addEventListener("mousemove", (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-    });
+    let cursorGlow = null;
     
     function updateCursorGlow() {
+      if (!cursorGlow) return;
       // 平滑跟随
       glowX += (mouseX - glowX) * 0.08;
       glowY += (mouseY - glowY) * 0.08;
@@ -64,27 +61,17 @@
       cursorGlow.style.top = glowY + "px";
       requestAnimationFrame(updateCursorGlow);
     }
-    updateCursorGlow();
     
-    // 页面加载完成后生成粒子
-    createParticles();
+    // ========== 全局变量声明 ==========
+    let drop, fileInput, err, loading, result, modelModal, openModelBtn, closeModelBtn;
+    let customModeNameInput, customColumnPicks, customSaveStatus, saveCustomModeBtn;
+    let selectAllColumnsBtn, clearColumnsBtn, refreshCustomModesBtn, customModeList;
+    let historySection, uploadHistoryList, historyStatus, loadLatestBtn, refreshHistoryBtn;
+    let startDateInput, endDateInput, applyDateFilterBtn, clearDateFilterBtn;
+    let mappingSelect, newMappingBtn, mappingEditPanel, mappingNameInput;
+    let saveMappingBtn, cancelMappingBtn, savedMappingsList, mappingMessage, mappingMatchStatus, refreshMappingsBtn;
+    let welcomeSection, loadSampleBtn, downloadTemplateBtn, loadLatestQuickBtn;
     
-    const drop = document.getElementById("drop");
-    const fileInput = document.getElementById("file");
-    const err = document.getElementById("err");
-    const loading = document.getElementById("loading");
-    const result = document.getElementById("result");
-    const modelModal = document.getElementById("model-config-modal");
-    const openModelBtn = document.getElementById("open-model-config");
-    const closeModelBtn = document.getElementById("close-model-config");
-    const customModeNameInput = document.getElementById("custom-mode-name");
-    const customColumnPicks = document.getElementById("custom-column-picks");
-    const customSaveStatus = document.getElementById("custom-save-status");
-    const saveCustomModeBtn = document.getElementById("save-custom-mode-btn");
-    const selectAllColumnsBtn = document.getElementById("select-all-columns-btn");
-    const clearColumnsBtn = document.getElementById("clear-columns-btn");
-    const refreshCustomModesBtn = document.getElementById("refresh-custom-modes-btn");
-    const customModeList = document.getElementById("custom-mode-list");
     const charts = {};
     const WEIGHT_LABELS = {
       oncall_open: "oncall未闭环",
@@ -104,12 +91,6 @@
     let latestColumns = [];
     let currentMappingId = null;
     let savedMappings = [];
-
-    // ========== 欢迎引导界面功能 ==========
-    const welcomeSection = document.getElementById("welcome-section");
-    const loadSampleBtn = document.getElementById("load-sample-btn");
-    const downloadTemplateBtn = document.getElementById("download-template-btn");
-    const loadLatestQuickBtn = document.getElementById("load-latest-quick-btn");
 
     // 示例数据（内置）
     const SAMPLE_DATA = {
@@ -135,118 +116,13 @@
       ]
     };
 
-    // 加载示例数据
-    async function loadSampleData() {
-      clearError();
-      welcomeSection.style.display = "none";
-      loading.classList.add("show");
-      loading.textContent = "正在加载示例数据...";
-      
-      try {
-        // 使用本地示例文件
-        const res = await fetch("/samples/sample_10_people.xlsx");
-        if (!res.ok) {
-          // 如果本地文件不存在，使用内置数据模拟
-          const mockPayload = {
-            shape: { rows: SAMPLE_DATA.rows.length, cols: SAMPLE_DATA.columns.length },
-            columns: SAMPLE_DATA.columns,
-            preview_rows: SAMPLE_DATA.rows,
-            all_rows: SAMPLE_DATA.rows,
-            preview_truncated: false,
-            all_rows_truncated: false,
-            dtypes: {},
-            missing_counts: {},
-            numeric_describe: null,
-            workload_analysis: null
-          };
-          render(mockPayload);
-          result.style.display = "block";
-          loading.classList.remove("show");
-          return;
-        }
-        
-        // 将示例文件转换为FormData上传
-        const blob = await res.blob();
-        const file = new File([blob], "sample_10_people.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        
-        const fd = new FormData();
-        fd.append("file", file);
-        
-        const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
-        const data = await uploadRes.json().catch(() => ({}));
-        
-        if (!uploadRes.ok) {
-          showError(data.detail || `加载示例失败 (${uploadRes.status})`);
-          welcomeSection.style.display = "block";
-          return;
-        }
-        
-        clearError();
-        render(data);
-        result.style.display = "block";
-      } catch (e) {
-        showError("加载示例数据失败，请手动上传文件。");
-        welcomeSection.style.display = "block";
-      } finally {
-        loading.classList.remove("show");
-        loading.textContent = "正在解析并计算工作量模型…";
-      }
-    }
-
-    // 下载空白模板
-    function downloadTemplate() {
-      const templateContent = SAMPLE_DATA.columns.join(",") + "\n" +
-        SAMPLE_DATA.rows.map(row => SAMPLE_DATA.columns.map(col => row[col] || 0).join(",")).join("\n");
-      
-      const blob = new Blob([templateContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "工作量模板.csv";
-      link.click();
-      URL.revokeObjectURL(url);
-    }
-
-    // 快速加载历史数据
-    async function loadLatestQuick() {
-      await loadLatestData();
-      if (result.style.display === "block") {
-        welcomeSection.style.display = "none";
-      }
-    }
-
-    // 显示/隐藏欢迎界面
-    function showWelcome() {
-      welcomeSection.style.display = "block";
-      result.style.display = "none";
-    }
-
-    function hideWelcome() {
-      welcomeSection.style.display = "none";
-    }
-
-    // 绑定欢迎界面按钮事件
-    loadSampleBtn.addEventListener("click", loadSampleData);
-    downloadTemplateBtn.addEventListener("click", downloadTemplate);
-    loadLatestQuickBtn.addEventListener("click", loadLatestQuick);
-
-    // ========== 列映射配置功能 ==========
-    const mappingSelect = document.getElementById("mapping-select");
-    const newMappingBtn = document.getElementById("new-mapping-btn");
-    const mappingEditPanel = document.getElementById("mapping-edit-panel");
-    const mappingNameInput = document.getElementById("mapping-name-input");
-    const saveMappingBtn = document.getElementById("save-mapping-btn");
-    const cancelMappingBtn = document.getElementById("cancel-mapping-btn");
-    const savedMappingsList = document.getElementById("saved-mappings-list");
-    const mappingMessage = document.getElementById("mapping-message");
-    const mappingMatchStatus = document.getElementById("mapping-match-status");
-    const refreshMappingsBtn = document.getElementById("refresh-mappings-btn");
-
     const ALIAS_KEYS = [
       "name", "oncall_open", "pending_ticket", "new_issue_yesterday",
       "governance_issue", "kernel_issue", "consult_issue", "escalation_help",
       "issue_ticket_output", "requirement_ticket_output", "wiki_output", "analysis_report_output"
     ];
+
+    // ========== 列映射配置功能 ==========
 
     // 加载已保存的映射配置列表
     async function loadColumnMappings() {
@@ -500,18 +376,6 @@
       return String(name).replace(/[\s\t()（）]/g, "").toLowerCase();
     }
 
-    // 绑定事件
-    newMappingBtn.addEventListener("click", () => showEditPanel());
-    cancelMappingBtn.addEventListener("click", hideEditPanel);
-    saveMappingBtn.addEventListener("click", saveMappingConfig);
-    refreshMappingsBtn.addEventListener("click", loadColumnMappings);
-    mappingSelect.addEventListener("change", () => {
-      currentMappingId = mappingSelect.value ? parseInt(mappingSelect.value, 10) : null;
-      if (latestColumns.length > 0) {
-        updateMappingMatchStatus();
-      }
-    });
-
     function showError(msg) {
       err.textContent = msg;
       err.classList.add("show");
@@ -540,46 +404,6 @@
       modelModal.classList.remove("show");
       modelModal.setAttribute("aria-hidden", "true");
     }
-
-    openModelBtn.addEventListener("click", openModelConfig);
-    closeModelBtn.addEventListener("click", closeModelConfig);
-    modelModal.addEventListener("click", (e) => {
-      if (e.target === modelModal) closeModelConfig();
-    });
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeModelConfig();
-    });
-    saveCustomModeBtn.addEventListener("click", saveCustomModeToPg);
-    selectAllColumnsBtn.addEventListener("click", () => {
-      customColumnPicks.querySelectorAll("input[type='checkbox']").forEach((el) => {
-        el.checked = true;
-      });
-    });
-    clearColumnsBtn.addEventListener("click", () => {
-      customColumnPicks.querySelectorAll("input[type='checkbox']").forEach((el) => {
-        el.checked = false;
-      });
-    });
-    refreshCustomModesBtn.addEventListener("click", loadCustomModeList);
-
-    ["dragenter", "dragover"].forEach((ev) => {
-      drop.addEventListener(ev, (e) => {
-        e.preventDefault();
-        drop.classList.add("dragover");
-      });
-    });
-    ["dragleave", "drop"].forEach((ev) => {
-      drop.addEventListener(ev, () => drop.classList.remove("dragover"));
-    });
-    drop.addEventListener("drop", (e) => {
-      e.preventDefault();
-      const f = e.dataTransfer.files[0];
-      if (f) upload(f);
-    });
-    fileInput.addEventListener("change", () => {
-      const f = fileInput.files[0];
-      if (f) upload(f);
-    });
 
     async function upload(file) {
       clearError();
@@ -1070,16 +894,6 @@
     }
 
     // ========== 历史数据管理功能（支持日期筛选） ==========
-    const historySection = document.getElementById("history-section");
-    const uploadHistoryList = document.getElementById("upload-history-list");
-    const historyStatus = document.getElementById("history-status");
-    const loadLatestBtn = document.getElementById("load-latest-btn");
-    const refreshHistoryBtn = document.getElementById("refresh-history-btn");
-    const startDateInput = document.getElementById("start-date");
-    const endDateInput = document.getElementById("end-date");
-    const applyDateFilterBtn = document.getElementById("apply-date-filter-btn");
-    const clearDateFilterBtn = document.getElementById("clear-date-filter-btn");
-    
     let availableDates = [];
 
     // 页面加载时自动检查并加载最新数据
@@ -1313,16 +1127,314 @@
     loadLatestBtn.addEventListener("click", loadLatestData);
     refreshHistoryBtn.addEventListener("click", initHistorySection);
 
+    // ========== 欢迎界面相关函数 ==========
+    function hideWelcome() {
+      if (welcomeSection) {
+        welcomeSection.style.display = "none";
+      }
+    }
+
+    async function loadSampleData() {
+      clearError();
+      result.style.display = "none";
+      loading.classList.add("show");
+      loading.textContent = "正在加载示例数据...";
+      
+      // 直接使用内置的示例数据渲染
+      try {
+        const mockData = {
+          columns: SAMPLE_DATA.columns,
+          preview_rows: SAMPLE_DATA.rows,
+          all_rows: SAMPLE_DATA.rows,
+          shape: { rows: SAMPLE_DATA.rows.length, cols: SAMPLE_DATA.columns.length },
+          dtypes: {},
+          missing_counts: {},
+          preview_truncated: false,
+          all_rows_truncated: false,
+          workload_analysis: {
+            weights: {
+              oncall_open: 0.5,
+              pending_ticket: 0.4,
+              new_issue_yesterday: 0.8,
+              governance_issue: 0.3,
+              kernel_issue: 0.35,
+              consult_issue: 0.25,
+              escalation_help: -0.2,
+              issue_ticket_output: 0.6,
+              requirement_ticket_output: 0.5,
+              wiki_output: 0.4,
+              analysis_report_output: 0.7
+            },
+            people: SAMPLE_DATA.rows.map(row => ({
+              name: row["姓名"],
+              oncall_open: row["oncall接单未闭环的数量"] || 0,
+              pending_ticket: row["名下的待处理工单数"] || 0,
+              new_issue_yesterday: row["昨日新增多少个问题"] || 0,
+              governance_issue: row["多少个管控的问题"] || 0,
+              kernel_issue: row["多少个内核的问题"] || 0,
+              consult_issue: row["多少个咨询问题"] || 0,
+              escalation_help: row["透传求助了多少个"] || 0,
+              issue_ticket_output: row["问题单数量"] || 0,
+              requirement_ticket_output: row["需求单数量"] || 0,
+              wiki_output: row["wiki输出数量"] || 0,
+              analysis_report_output: row["问题分析报告数量"] || 0,
+              daily_issue_total: row["多少个管控的问题"] + row["多少个内核的问题"] + row["多少个咨询问题"]
+            }))
+          }
+        };
+        
+        // 计算工作量分
+        const w = mockData.workload_analysis.weights;
+        mockData.workload_analysis.people.forEach(p => {
+          p.workload_score = (
+            p.oncall_open * w.oncall_open +
+            p.pending_ticket * w.pending_ticket +
+            p.new_issue_yesterday * w.new_issue_yesterday +
+            p.governance_issue * w.governance_issue +
+            p.kernel_issue * w.kernel_issue +
+            p.consult_issue * w.consult_issue +
+            p.escalation_help * w.escalation_help +
+            p.issue_ticket_output * w.issue_ticket_output +
+            p.requirement_ticket_output * w.requirement_ticket_output +
+            p.wiki_output * w.wiki_output +
+            p.analysis_report_output * w.analysis_report_output
+          ).toFixed(2);
+          // 计算风险等级
+          const riskScore = p.escalation_help * 1.2 + p.pending_ticket * 0.7 + p.oncall_open * 0.65;
+          p.risk_level = riskScore >= 18 ? "high" : riskScore >= 10 ? "medium" : "low";
+        });
+        mockData.workload_analysis.people.sort((a, b) => b.workload_score - a.workload_score);
+        
+        // 计算总量
+        const totals = {};
+        mockData.workload_analysis.people.forEach(p => {
+          Object.keys(p).forEach(k => {
+            if (typeof p[k] === 'number') totals[k] = (totals[k] || 0) + p[k];
+          });
+        });
+        mockData.workload_analysis.totals = totals;
+        mockData.workload_analysis.risk_level_counts = {
+          high: mockData.workload_analysis.people.filter(p => p.risk_level === 'high').length,
+          medium: mockData.workload_analysis.people.filter(p => p.risk_level === 'medium').length,
+          low: mockData.workload_analysis.people.filter(p => p.risk_level === 'low').length
+        };
+        mockData.workload_analysis.top_score_names = mockData.workload_analysis.people.slice(0, 3).map(p => p.name);
+        mockData.workload_analysis.top_transparent_names = [...mockData.workload_analysis.people].sort((a, b) => b.escalation_help - a.escalation_help).slice(0, 3).map(p => p.name);
+        mockData.workload_analysis.transparent_ranking = [...mockData.workload_analysis.people].sort((a, b) => b.escalation_help - a.escalation_help).map(p => ({ name: p.name, escalation_help: p.escalation_help }));
+        
+        // 设置数据类型
+        SAMPLE_DATA.columns.forEach(col => {
+          mockData.dtypes[col] = col === "姓名" ? "string" : "int";
+          mockData.missing_counts[col] = 0;
+        });
+        
+        clearError();
+        render(mockData);
+        result.style.display = "block";
+        hideWelcome();
+      } catch (e) {
+        showError("加载示例数据失败：" + e.message);
+      } finally {
+        loading.classList.remove("show");
+        loading.textContent = "正在解析并计算工作量模型...";
+      }
+    }
+
+    async function downloadTemplate() {
+      const templateContent = [
+        "姓名,oncall接单未闭环的数量,名下的待处理工单数,昨日新增多少个问题,多少个管控的问题,多少个内核的问题,多少个咨询问题,透传求助了多少个,问题单数量,需求单数量,wiki输出数量,问题分析报告数量",
+        "张三,3,5,2,1,2,1,1,2,1,3,1",
+        "李四,2,3,1,2,1,2,2,1,2,2,0",
+        "王五,5,8,3,1,3,0,4,0,1,1,0"
+      ].join("\n");
+      
+      const blob = new Blob([templateContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "工作量模板.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    async function loadLatestQuick() {
+      // 检查是否有历史数据
+      if (historySection && historySection.style.display !== "none") {
+        await loadLatestData();
+      } else {
+        showError("暂无历史数据可加载，请先上传文件或加载示例数据。");
+      }
+    }
+
+    // ========== DOM 初始化与事件绑定 ==========
+    function initDOMElements() {
+      drop = document.getElementById("drop");
+      fileInput = document.getElementById("file");
+      err = document.getElementById("err");
+      loading = document.getElementById("loading");
+      result = document.getElementById("result");
+      modelModal = document.getElementById("model-config-modal");
+      openModelBtn = document.getElementById("open-model-config");
+      closeModelBtn = document.getElementById("close-model-config");
+      customModeNameInput = document.getElementById("custom-mode-name");
+      customColumnPicks = document.getElementById("custom-column-picks");
+      customSaveStatus = document.getElementById("custom-save-status");
+      saveCustomModeBtn = document.getElementById("save-custom-mode-btn");
+      selectAllColumnsBtn = document.getElementById("select-all-columns-btn");
+      clearColumnsBtn = document.getElementById("clear-columns-btn");
+      refreshCustomModesBtn = document.getElementById("refresh-custom-modes-btn");
+      customModeList = document.getElementById("custom-mode-list");
+      historySection = document.getElementById("history-section");
+      uploadHistoryList = document.getElementById("upload-history-list");
+      historyStatus = document.getElementById("history-status");
+      loadLatestBtn = document.getElementById("load-latest-btn");
+      refreshHistoryBtn = document.getElementById("refresh-history-btn");
+      startDateInput = document.getElementById("start-date");
+      endDateInput = document.getElementById("end-date");
+      applyDateFilterBtn = document.getElementById("apply-date-filter-btn");
+      clearDateFilterBtn = document.getElementById("clear-date-filter-btn");
+      mappingSelect = document.getElementById("mapping-select");
+      newMappingBtn = document.getElementById("new-mapping-btn");
+      mappingEditPanel = document.getElementById("mapping-edit-panel");
+      mappingNameInput = document.getElementById("mapping-name-input");
+      saveMappingBtn = document.getElementById("save-mapping-btn");
+      cancelMappingBtn = document.getElementById("cancel-mapping-btn");
+      savedMappingsList = document.getElementById("saved-mappings-list");
+      mappingMessage = document.getElementById("mapping-message");
+      mappingMatchStatus = document.getElementById("mapping-match-status");
+      refreshMappingsBtn = document.getElementById("refresh-mappings-btn");
+      welcomeSection = document.getElementById("welcome-section");
+      loadSampleBtn = document.getElementById("load-sample-btn");
+      downloadTemplateBtn = document.getElementById("download-template-btn");
+      loadLatestQuickBtn = document.getElementById("load-latest-quick-btn");
+      
+      // 鼠标跟随光晕元素
+      cursorGlow = document.getElementById("cursor-glow");
+    }
+
+    function bindEvents() {
+      // 欢迎界面按钮事件
+      if (loadSampleBtn) loadSampleBtn.addEventListener("click", loadSampleData);
+      if (downloadTemplateBtn) downloadTemplateBtn.addEventListener("click", downloadTemplate);
+      if (loadLatestQuickBtn) loadLatestQuickBtn.addEventListener("click", loadLatestQuick);
+      
+      // 列映射配置事件
+      if (newMappingBtn) newMappingBtn.addEventListener("click", () => showEditPanel());
+      if (cancelMappingBtn) cancelMappingBtn.addEventListener("click", hideEditPanel);
+      if (saveMappingBtn) saveMappingBtn.addEventListener("click", saveMappingConfig);
+      if (refreshMappingsBtn) refreshMappingsBtn.addEventListener("click", loadColumnMappings);
+      if (mappingSelect) mappingSelect.addEventListener("change", () => {
+        currentMappingId = mappingSelect.value ? parseInt(mappingSelect.value, 10) : null;
+        if (latestColumns.length > 0) {
+          updateMappingMatchStatus();
+        }
+      });
+      
+      // 模型配置弹窗事件
+      if (openModelBtn) openModelBtn.addEventListener("click", openModelConfig);
+      if (closeModelBtn) closeModelBtn.addEventListener("click", closeModelConfig);
+      if (modelModal) modelModal.addEventListener("click", (e) => {
+        if (e.target === modelModal) closeModelConfig();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeModelConfig();
+      });
+      
+      // 自定义模式按钮事件
+      if (saveCustomModeBtn) saveCustomModeBtn.addEventListener("click", saveCustomModeToPg);
+      if (selectAllColumnsBtn) selectAllColumnsBtn.addEventListener("click", () => {
+        if (customColumnPicks) customColumnPicks.querySelectorAll("input[type='checkbox']").forEach((el) => {
+          el.checked = true;
+        });
+      });
+      if (clearColumnsBtn) clearColumnsBtn.addEventListener("click", () => {
+        if (customColumnPicks) customColumnPicks.querySelectorAll("input[type='checkbox']").forEach((el) => {
+          el.checked = false;
+        });
+      });
+      if (refreshCustomModesBtn) refreshCustomModesBtn.addEventListener("click", loadCustomModeList);
+      
+      // 文件拖拽上传事件
+      if (drop) {
+        ["dragenter", "dragover"].forEach((ev) => {
+          drop.addEventListener(ev, (e) => {
+            e.preventDefault();
+            drop.classList.add("dragover");
+          });
+        });
+        ["dragleave", "drop"].forEach((ev) => {
+          drop.addEventListener(ev, () => drop.classList.remove("dragover"));
+        });
+        drop.addEventListener("drop", (e) => {
+          e.preventDefault();
+          const f = e.dataTransfer.files[0];
+          if (f) upload(f);
+        });
+      }
+      if (fileInput) fileInput.addEventListener("change", () => {
+        const f = fileInput.files[0];
+        if (f) upload(f);
+      });
+      
+      // 历史数据管理按钮事件
+      if (loadLatestBtn) loadLatestBtn.addEventListener("click", loadLatestData);
+      if (refreshHistoryBtn) refreshHistoryBtn.addEventListener("click", initHistorySection);
+      
+      // 日期筛选按钮事件
+      if (applyDateFilterBtn) applyDateFilterBtn.addEventListener("click", applyDateFilter);
+      if (clearDateFilterBtn) clearDateFilterBtn.addEventListener("click", () => {
+        if (startDateInput) startDateInput.value = "";
+        if (endDateInput) endDateInput.value = "";
+        document.querySelectorAll(".quick-date-btn").forEach(b => b.classList.remove("active"));
+        initHistorySection();
+      });
+      
+      // 快捷日期按钮
+      document.querySelectorAll(".quick-date-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const range = parseInt(btn.getAttribute("data-range"), 10);
+          const today = new Date();
+          const startDate = new Date(today);
+          startDate.setDate(startDate.getDate() - range);
+          if (startDateInput) startDateInput.value = startDate.toISOString().split('T')[0];
+          if (endDateInput) endDateInput.value = today.toISOString().split('T')[0];
+          document.querySelectorAll(".quick-date-btn").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          applyDateFilter();
+        });
+      });
+      
+      // 鼠标跟随光晕事件
+      document.addEventListener("mousemove", (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+      });
+      if (cursorGlow) {
+        updateCursorGlow();
+      }
+    }
+
     // 页面加载完成后初始化
     window.addEventListener("DOMContentLoaded", () => {
+      // 初始化粒子效果
+      createParticles();
+      
+      // 初始化DOM元素
+      initDOMElements();
+      
+      // 绑定所有事件
+      bindEvents();
+      
+      // 初始化历史数据
       initHistorySection();
       loadColumnMappings();
-      // 延迟500ms后尝试自动加载最新数据
+      
+      // 延迟500ms后检查历史数据状态
       setTimeout(() => {
-        if (historySection.style.display !== "none") {
-          // 有历史数据时，不自动加载（用户可选择点击"加载最新数据"按钮）
+        if (historySection && historySection.style.display !== "none") {
           historyStatus.textContent = '有历史数据，可点击"加载最新数据"快速查看上次的分析结果。';
         }
       }, 500);
     });
-  </script>
