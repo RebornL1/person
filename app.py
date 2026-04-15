@@ -1149,6 +1149,33 @@ async def suggest_column_mapping() -> JSONResponse:
     })
 
 
+# 示例模板数据（用于首次访问展示）
+SAMPLE_TEMPLATE_DATA = [
+    {"姓名": "张三", "oncall接单未闭环的数量": 3, "名下的待处理工单数": 5, "昨日新增多少个问题": 2, "多少个管控的问题": 1, "多少个内核的问题": 3, "多少个咨询问题": 2, "透传求助了多少个": 1, "问题单数量": 2, "需求单数量": 1, "wiki输出数量": 3, "问题分析报告数量": 1},
+    {"姓名": "李四", "oncall接单未闭环的数量": 2, "名下的待处理工单数": 3, "昨日新增多少个问题": 1, "多少个管控的问题": 2, "多少个内核的问题": 2, "多少个咨询问题": 1, "透传求助了多少个": 2, "问题单数量": 3, "需求单数量": 2, "wiki输出数量": 2, "问题分析报告数量": 2},
+    {"姓名": "王五", "oncall接单未闭环的数量": 4, "名下的待处理工单数": 6, "昨日新增多少个问题": 3, "多少个管控的问题": 1, "多少个内核的问题": 4, "多少个咨询问题": 3, "透传求助了多少个": 0, "问题单数量": 4, "需求单数量": 1, "wiki输出数量": 4, "问题分析报告数量": 1},
+    {"姓名": "赵六", "oncall接单未闭环的数量": 1, "名下的待处理工单数": 2, "昨日新增多少个问题": 1, "多少个管控的问题": 3, "多少个内核的问题": 1, "多少个咨询问题": 2, "透传求助了多少个": 3, "问题单数量": 1, "需求单数量": 3, "wiki输出数量": 1, "问题分析报告数量": 0},
+    {"姓名": "钱七", "oncall接单未闭环的数量": 5, "名下的待处理工单数": 8, "昨日新增多少个问题": 4, "多少个管控的问题": 2, "多少个内核的问题": 5, "多少个咨询问题": 2, "透传求助了多少个": 4, "问题单数量": 2, "需求单数量": 0, "wiki输出数量": 2, "问题分析报告数量": 1},
+]
+
+
+def _get_template_payload() -> dict[str, Any]:
+    """生成默认模板数据的响应payload"""
+    df = pd.DataFrame(SAMPLE_TEMPLATE_DATA)
+    payload = _dataframe_to_payload(df)
+    payload["all_rows"] = SAMPLE_TEMPLATE_DATA
+    payload["all_rows_truncated"] = False
+    payload["is_template"] = True
+    payload["template_message"] = "这是示例数据，请上传您的Excel文件查看实际分析结果"
+    return payload
+
+
+@app.get("/api/template")
+async def get_template_data() -> JSONResponse:
+    """获取默认模板数据（用于首次访问展示）"""
+    return JSONResponse(content=_get_template_payload())
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index() -> str:
     html_path = BASE_DIR / "static" / "index.html"

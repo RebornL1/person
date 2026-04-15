@@ -2463,14 +2463,52 @@
     window.addEventListener("DOMContentLoaded", () => {
       initHistorySection();
       loadColumnMappings();
-      // 延迟500ms后尝试自动加载最新数据
-      setTimeout(() => {
-        if (historySection.style.display !== "none") {
-          // 有历史数据时，不自动加载（用户可选择点击"加载最新数据"按钮）
+      
+      // 延迟检查是否有历史数据，如果没有则加载模板数据
+      setTimeout(async () => {
+        if (historySection.style.display === "none") {
+          // 没有历史数据，加载默认模板展示
+          await loadTemplateData();
+        } else {
           historyStatus.textContent = '有历史数据，可点击"加载最新数据"快速查看上次的分析结果。';
         }
       }, 500);
     });
+    
+    // 加载默认模板数据
+    async function loadTemplateData() {
+      clearError();
+      loading.classList.add("show");
+      loading.textContent = "正在加载示例数据...";
+      try {
+        const res = await fetch("/api/template");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showError(data.detail || `加载模板失败 (${res.status})`);
+          return;
+        }
+        clearError();
+        render(data);
+        result.style.display = "block";
+        
+        // 显示模板提示信息
+        if (data.is_template) {
+          const templateNotice = document.createElement("div");
+          templateNotice.className = "status-note";
+          templateNotice.style.cssText = "background:rgba(245,158,11,0.15);color:#f59e0b;padding:0.6rem;border-radius:8px;margin-top:0.5rem;";
+          templateNotice.innerHTML = `<span style="font-weight:500;">📌 示例数据</span>：${escapeHtml(data.template_message || "这是示例数据，请上传您的Excel文件查看实际分析结果")}`;
+          const firstSection = result.querySelector("section");
+          if (firstSection) {
+            firstSection.insertBefore(templateNotice, firstSection.firstChild.nextSibling);
+          }
+        }
+      } catch (e) {
+        showError("网络错误，加载示例数据失败。");
+      } finally {
+        loading.classList.remove("show");
+        loading.textContent = "正在解析并计算工作量模型…";
+      }
+    }
   </script>
 </body>
 </html>
