@@ -1,0 +1,43 @@
+# Environment variables (contains sensitive database connection info)
+.env
+
+# Python virtual environment
+.venv/
+venv/
+env/
+__pycache__/
+*.py[c,o]
+*.pyo
+.Python
+
+# IDE and editor files
+.DS_Store
+.cursor/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+
+# Test files
+tests/__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Jupyter notebooks
+.ipynb_checkpoints/
