@@ -954,23 +954,6 @@
       }
     }
 
-    // 快捷日期按钮绑定
-    document.querySelectorAll(".quick-date-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const range = parseInt(btn.getAttribute("data-range"), 10);
-        const today = new Date();
-        const startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - range);
-        startDateInput.value = startDate.toISOString().split('T')[0];
-        endDateInput.value = today.toISOString().split('T')[0];
-        // 高亮当前按钮
-        document.querySelectorAll(".quick-date-btn").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        // 自动应用筛选
-        applyDateFilter();
-      });
-    });
-
     // 应用日期筛选
     async function applyDateFilter() {
       const startDate = startDateInput.value;
