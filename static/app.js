@@ -1,0 +1,1328 @@
+    // ========== 优雅粒子系统（减少数量，提升质感） ==========
+    function createParticles() {
+      const container = document.getElementById("particles");
+      const colors = ["#3d8bfd", "#22c55e", "#a78bfa", "#f59e0b"];
+      
+      // 优雅发光粒子 - 只创建15个
+      for (let i = 0; i < 15; i++) {
+        const particle = document.createElement("div");
+        particle.className = "particle";
+        const size = Math.random() * 6 + 3;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const left = Math.random() * 100;
+        const duration = Math.random() * 25 + 18;
+        const delay = Math.random() * 20;
+        particle.style.cssText = `
+          width: ${size}px;
+          height: ${size}px;
+          left: ${left}%;
+          background: radial-gradient(circle, ${color} 0%, ${color}40 50%, transparent 100%);
+          animation-duration: ${duration}s;
+          animation-delay: ${delay}s;
+          box-shadow: 0 0 ${size * 3}px ${color}60;
+        `;
+        container.appendChild(particle);
+      }
+      
+      // 柔和光晕粒子 - 只创建5个大型半透明
+      for (let i = 0; i < 5; i++) {
+        const halo = document.createElement("div");
+        halo.className = "particle";
+        const size = Math.random() * 30 + 15;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const left = Math.random() * 100;
+        const duration = Math.random() * 35 + 30;
+        const delay = Math.random() * 25;
+        halo.style.cssText = `
+          width: ${size}px;
+          height: ${size}px;
+          left: ${left}%;
+          background: radial-gradient(circle, ${color}20 0%, ${color}08 40%, transparent 100%);
+          animation-duration: ${duration}s;
+          animation-delay: ${delay}s;
+          filter: blur(2px);
+        `;
+        container.appendChild(halo);
+      }
+    }
+    
+    // ========== 鼠标跟随光晕 ==========
+    const cursorGlow = document.getElementById("cursor-glow");
+    let mouseX = 0, mouseY = 0;
+    let glowX = 0, glowY = 0;
+    
+    document.addEventListener("mousemove", (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    });
+    
+    function updateCursorGlow() {
+      // 平滑跟随
+      glowX += (mouseX - glowX) * 0.08;
+      glowY += (mouseY - glowY) * 0.08;
+      cursorGlow.style.left = glowX + "px";
+      cursorGlow.style.top = glowY + "px";
+      requestAnimationFrame(updateCursorGlow);
+    }
+    updateCursorGlow();
+    
+    // 页面加载完成后生成粒子
+    createParticles();
+    
+    const drop = document.getElementById("drop");
+    const fileInput = document.getElementById("file");
+    const err = document.getElementById("err");
+    const loading = document.getElementById("loading");
+    const result = document.getElementById("result");
+    const modelModal = document.getElementById("model-config-modal");
+    const openModelBtn = document.getElementById("open-model-config");
+    const closeModelBtn = document.getElementById("close-model-config");
+    const customModeNameInput = document.getElementById("custom-mode-name");
+    const customColumnPicks = document.getElementById("custom-column-picks");
+    const customSaveStatus = document.getElementById("custom-save-status");
+    const saveCustomModeBtn = document.getElementById("save-custom-mode-btn");
+    const selectAllColumnsBtn = document.getElementById("select-all-columns-btn");
+    const clearColumnsBtn = document.getElementById("clear-columns-btn");
+    const refreshCustomModesBtn = document.getElementById("refresh-custom-modes-btn");
+    const customModeList = document.getElementById("custom-mode-list");
+    const charts = {};
+    const WEIGHT_LABELS = {
+      oncall_open: "oncall未闭环",
+      pending_ticket: "待处理工单",
+      new_issue_yesterday: "昨日新增问题",
+      governance_issue: "管控问题",
+      kernel_issue: "内核问题",
+      consult_issue: "咨询问题",
+      escalation_help: "透传求助(负向建议为负数)",
+      issue_ticket_output: "问题单产出",
+      requirement_ticket_output: "需求单产出",
+      wiki_output: "wiki产出",
+      analysis_report_output: "分析报告产出",
+    };
+    let currentAnalysis = null;
+    let latestAllRows = [];
+    let latestColumns = [];
+    let currentMappingId = null;
+    let savedMappings = [];
+
+    // ========== 欢迎引导界面功能 ==========
+    const welcomeSection = document.getElementById("welcome-section");
+    const loadSampleBtn = document.getElementById("load-sample-btn");
+    const downloadTemplateBtn = document.getElementById("download-template-btn");
+    const loadLatestQuickBtn = document.getElementById("load-latest-quick-btn");
+
+    // 示例数据（内置）
+    const SAMPLE_DATA = {
+      columns: ["姓名", "oncall接单未闭环的数量", "名下的待处理工单数", "昨日新增多少个问题", 
+                "多少个管控的问题", "多少个内核的问题", "多少个咨询问题", "透传求助了多少个",
+                "问题单数量", "需求单数量", "wiki输出数量", "问题分析报告数量"],
+      rows: [
+        {"姓名": "张三", "oncall接单未闭环的数量": 3, "名下的待处理工单数": 5, "昨日新增多少个问题": 2, 
+         "多少个管控的问题": 1, "多少个内核的问题": 2, "多少个咨询问题": 1, "透传求助了多少个": 1,
+         "问题单数量": 2, "需求单数量": 1, "wiki输出数量": 3, "问题分析报告数量": 1},
+        {"姓名": "李四", "oncall接单未闭环的数量": 2, "名下的待处理工单数": 3, "昨日新增多少个问题": 1,
+         "多少个管控的问题": 2, "多少个内核的问题": 1, "多少个咨询问题": 2, "透传求助了多少个": 2,
+         "问题单数量": 1, "需求单数量": 2, "wiki输出数量": 2, "问题分析报告数量": 0},
+        {"姓名": "王五", "oncall接单未闭环的数量": 5, "名下的待处理工单数": 8, "昨日新增多少个问题": 3,
+         "多少个管控的问题": 1, "多少个内核的问题": 3, "多少个咨询问题": 0, "透传求助了多少个": 4,
+         "问题单数量": 0, "需求单数量": 1, "wiki输出数量": 1, "问题分析报告数量": 0},
+        {"姓名": "赵六", "oncall接单未闭环的数量": 1, "名下的待处理工单数": 2, "昨日新增多少个问题": 0,
+         "多少个管控的问题": 0, "多少个内核的问题": 1, "多少个咨询问题": 3, "透传求助了多少个": 0,
+         "问题单数量": 3, "需求单数量": 2, "wiki输出数量": 5, "问题分析报告数量": 2},
+        {"姓名": "陈七", "oncall接单未闭环的数量": 4, "名下的待处理工单数": 6, "昨日新增多少个问题": 2,
+         "多少个管控的问题": 2, "多少个内核的问题": 2, "多少个咨询问题": 1, "透传求助了多少个": 3,
+         "问题单数量": 1, "需求单数量": 0, "wiki输出数量": 2, "问题分析报告数量": 1}
+      ]
+    };
+
+    // 加载示例数据
+    async function loadSampleData() {
+      clearError();
+      welcomeSection.style.display = "none";
+      loading.classList.add("show");
+      loading.textContent = "正在加载示例数据...";
+      
+      try {
+        // 使用本地示例文件
+        const res = await fetch("/samples/sample_10_people.xlsx");
+        if (!res.ok) {
+          // 如果本地文件不存在，使用内置数据模拟
+          const mockPayload = {
+            shape: { rows: SAMPLE_DATA.rows.length, cols: SAMPLE_DATA.columns.length },
+            columns: SAMPLE_DATA.columns,
+            preview_rows: SAMPLE_DATA.rows,
+            all_rows: SAMPLE_DATA.rows,
+            preview_truncated: false,
+            all_rows_truncated: false,
+            dtypes: {},
+            missing_counts: {},
+            numeric_describe: null,
+            workload_analysis: null
+          };
+          render(mockPayload);
+          result.style.display = "block";
+          loading.classList.remove("show");
+          return;
+        }
+        
+        // 将示例文件转换为FormData上传
+        const blob = await res.blob();
+        const file = new File([blob], "sample_10_people.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        
+        const fd = new FormData();
+        fd.append("file", file);
+        
+        const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
+        const data = await uploadRes.json().catch(() => ({}));
+        
+        if (!uploadRes.ok) {
+          showError(data.detail || `加载示例失败 (${uploadRes.status})`);
+          welcomeSection.style.display = "block";
+          return;
+        }
+        
+        clearError();
+        render(data);
+        result.style.display = "block";
+      } catch (e) {
+        showError("加载示例数据失败，请手动上传文件。");
+        welcomeSection.style.display = "block";
+      } finally {
+        loading.classList.remove("show");
+        loading.textContent = "正在解析并计算工作量模型…";
+      }
+    }
+
+    // 下载空白模板
+    function downloadTemplate() {
+      const templateContent = SAMPLE_DATA.columns.join(",") + "\n" +
+        SAMPLE_DATA.rows.map(row => SAMPLE_DATA.columns.map(col => row[col] || 0).join(",")).join("\n");
+      
+      const blob = new Blob([templateContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "工作量模板.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // 快速加载历史数据
+    async function loadLatestQuick() {
+      await loadLatestData();
+      if (result.style.display === "block") {
+        welcomeSection.style.display = "none";
+      }
+    }
+
+    // 显示/隐藏欢迎界面
+    function showWelcome() {
+      welcomeSection.style.display = "block";
+      result.style.display = "none";
+    }
+
+    function hideWelcome() {
+      welcomeSection.style.display = "none";
+    }
+
+    // 绑定欢迎界面按钮事件
+    loadSampleBtn.addEventListener("click", loadSampleData);
+    downloadTemplateBtn.addEventListener("click", downloadTemplate);
+    loadLatestQuickBtn.addEventListener("click", loadLatestQuick);
+
+    // ========== 列映射配置功能 ==========
+    const mappingSelect = document.getElementById("mapping-select");
+    const newMappingBtn = document.getElementById("new-mapping-btn");
+    const mappingEditPanel = document.getElementById("mapping-edit-panel");
+    const mappingNameInput = document.getElementById("mapping-name-input");
+    const saveMappingBtn = document.getElementById("save-mapping-btn");
+    const cancelMappingBtn = document.getElementById("cancel-mapping-btn");
+    const savedMappingsList = document.getElementById("saved-mappings-list");
+    const mappingMessage = document.getElementById("mapping-message");
+    const mappingMatchStatus = document.getElementById("mapping-match-status");
+    const refreshMappingsBtn = document.getElementById("refresh-mappings-btn");
+
+    const ALIAS_KEYS = [
+      "name", "oncall_open", "pending_ticket", "new_issue_yesterday",
+      "governance_issue", "kernel_issue", "consult_issue", "escalation_help",
+      "issue_ticket_output", "requirement_ticket_output", "wiki_output", "analysis_report_output"
+    ];
+
+    // 加载已保存的映射配置列表
+    async function loadColumnMappings() {
+      try {
+        const res = await fetch("/api/column-mapping/list");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          mappingMessage.textContent = data.detail || "加载配置失败";
+          return;
+        }
+        savedMappings = Array.isArray(data.items) ? data.items : [];
+        
+        // 更新下拉选择框
+        mappingSelect.innerHTML = '<option value="">默认配置</option>' +
+          savedMappings.map(m => `<option value="${m.id}">${escapeHtml(m.mapping_name)}</option>`).join("");
+        
+        // 更新已保存配置列表
+        renderSavedMappings();
+        
+        // 如果有当前列，更新匹配状态
+        if (latestColumns.length > 0) {
+          updateMappingMatchStatus();
+        }
+      } catch (e) {
+        mappingMessage.textContent = "网络错误，加载配置失败";
+      }
+    }
+
+    function renderSavedMappings() {
+      if (!savedMappings.length) {
+        savedMappingsList.innerHTML = "<div class='mapping-list-item'><small>暂无自定义配置，使用默认配置即可。</small></div>";
+        return;
+      }
+      savedMappingsList.innerHTML = savedMappings.map(m => {
+        const isDefault = m.is_default;
+        return `
+          <div class="mapping-list-item ${isDefault ? 'default' : ''}">
+            <div>
+              <b>${escapeHtml(m.mapping_name)}</b>
+              ${isDefault ? '<span style="color:#22c55e;font-size:0.72rem;margin-left:0.3rem;">默认</span>' : ''}
+            </div>
+            <div style="display:flex;gap:0.4rem;">
+              <button type="button" class="btn" style="font-size:0.72rem;padding:0.25rem 0.4rem;" data-edit-mapping="${m.id}">编辑</button>
+              ${!isDefault ? `<button type="button" class="btn" style="font-size:0.72rem;padding:0.25rem 0.4rem;background:rgba(248,113,113,0.15);" data-delete-mapping="${m.id}">删除</button>` : ''}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      // 绑定编辑和删除事件
+      savedMappingsList.querySelectorAll("button[data-edit-mapping]").forEach(btn => {
+        btn.addEventListener("click", () => editMapping(parseInt(btn.getAttribute("data-edit-mapping"), 10)));
+      });
+      savedMappingsList.querySelectorAll("button[data-delete-mapping]").forEach(btn => {
+        btn.addEventListener("click", () => deleteMapping(parseInt(btn.getAttribute("data-delete-mapping"), 10)));
+      });
+    }
+
+    // 显示编辑面板
+    function showEditPanel(mapping = null) {
+      mappingEditPanel.style.display = "block";
+      if (mapping) {
+        mappingNameInput.value = mapping.mapping_name || "";
+        ALIAS_KEYS.forEach(key => {
+          const input = document.getElementById(`alias-${key}`);
+          if (input) {
+            const aliases = mapping.aliases?.[key] || [];
+            input.value = aliases.join(", ");
+          }
+        });
+      } else {
+        mappingNameInput.value = "";
+        ALIAS_KEYS.forEach(key => {
+          const input = document.getElementById(`alias-${key}`);
+          if (input) input.value = "";
+        });
+      }
+    }
+
+    function hideEditPanel() {
+      mappingEditPanel.style.display = "none";
+      mappingNameInput.value = "";
+      ALIAS_KEYS.forEach(key => {
+        const input = document.getElementById(`alias-${key}`);
+        if (input) input.value = "";
+      });
+    }
+
+    // 编辑现有配置
+    function editMapping(mappingId) {
+      const mapping = savedMappings.find(m => m.id === mappingId);
+      if (mapping) {
+        showEditPanel(mapping);
+      }
+    }
+
+    // 保存配置
+    async function saveMappingConfig() {
+      const name = mappingNameInput.value.trim();
+      if (!name) {
+        mappingMessage.textContent = "请输入配置名称";
+        return;
+      }
+
+      const aliasesData = {};
+      ALIAS_KEYS.forEach(key => {
+        const input = document.getElementById(`alias-${key}`);
+        if (input) {
+          const value = input.value.trim();
+          aliasesData[key + "_aliases"] = value ? value.split(",").map(s => s.trim()).filter(Boolean) : [];
+        }
+      });
+
+      try {
+        const res = await fetch("/api/column-mapping/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mapping_name: name, ...aliasesData })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          mappingMessage.textContent = data.detail || "保存失败";
+          return;
+        }
+        mappingMessage.textContent = `配置 "${name}" 已保存`;
+        hideEditPanel();
+        await loadColumnMappings();
+      } catch (e) {
+        mappingMessage.textContent = "网络错误，保存失败";
+      }
+    }
+
+    // 删除配置
+    async function deleteMapping(mappingId) {
+      if (!mappingId) return;
+      const sure = window.confirm("确认删除该配置吗？");
+      if (!sure) return;
+      try {
+        const res = await fetch("/api/column-mapping/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mapping_id: mappingId })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          mappingMessage.textContent = data.detail || "删除失败";
+          return;
+        }
+        mappingMessage.textContent = "配置已删除";
+        await loadColumnMappings();
+      } catch (e) {
+        mappingMessage.textContent = "网络错误，删除失败";
+      }
+    }
+
+    // 更新列匹配状态
+    function updateMappingMatchStatus() {
+      if (!latestColumns.length) {
+        mappingMatchStatus.style.display = "none";
+        return;
+      }
+
+      const currentAliases = getCurrentAliases();
+      const matchResults = [];
+      
+      ALIAS_KEYS.forEach(key => {
+        const aliases = currentAliases[key] || [];
+        const matched = findColumn(latestColumns, aliases);
+        if (key === "name") {
+          matchResults.push({
+            key,
+            label: "姓名",
+            matched,
+            matchedCol: matched
+          });
+        } else {
+          matchResults.push({
+            key,
+            label: WEIGHT_LABELS[key] || key,
+            matched,
+            matchedCol: matched
+          });
+        }
+      });
+
+      const matchedCount = matchResults.filter(r => r.matched).length;
+      const html = `
+        <div style="font-size:0.82rem;color:#9bc0ff;margin-bottom:0.4rem;">
+          列匹配状态：${matchedCount}/${matchResults.length} 列已匹配
+          ${matchedCount < 5 ? '<span style="color:#f87171;margin-left:0.3rem;">（建议配置更多列别名）</span>' : '<span style="color:#22c55e;margin-left:0.3rem;">匹配良好</span>'}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.3rem;">
+          ${matchResults.map(r => `
+            <div style="font-size:0.78rem;padding:0.25rem 0.4rem;border-radius:6px;background:${r.matched ? 'rgba(34,197,94,0.1)' : 'rgba(248,113,113,0.1)'};">
+              <span style="color:${r.matched ? '#22c55e' : '#f87171'};">${r.matched ? '✓' : '✗'}</span>
+              ${escapeHtml(r.label)}: ${r.matched ? `<span class="matched-col">${escapeHtml(r.matchedCol)}</span>` : '<span class="unmatched-col">未匹配</span>'}
+            </div>
+          `).join("")}
+        </div>
+      `;
+      mappingMatchStatus.innerHTML = html;
+      mappingMatchStatus.style.display = "block";
+    }
+
+    // 获取当前选中的别名配置
+    function getCurrentAliases() {
+      const selectedId = mappingSelect.value;
+      if (!selectedId) {
+        return getDefaultAliases();
+      }
+      const mapping = savedMappings.find(m => m.id === parseInt(selectedId, 10));
+      if (mapping && mapping.aliases) {
+        return mapping.aliases;
+      }
+      return getDefaultAliases();
+    }
+
+    // 获取默认别名配置
+    function getDefaultAliases() {
+      return {
+        name: ["姓名", "名字", "人员", "同学", "name", "员工姓名"],
+        oncall_open: ["oncall接单未闭环的数量", "oncall未闭环", "接单未闭环", "oncall_open", "未闭环数量"],
+        pending_ticket: ["名下的待处理工单数", "待处理工单", "待处理工单数", "pending_ticket", "名下工单"],
+        new_issue_yesterday: ["昨日新增多少个问题", "昨日新增问题", "昨日新增", "new_issue_yesterday", "new_issues"],
+        governance_issue: ["多少个管控的问题", "管控问题", "管控", "governance_issue", "管控类问题"],
+        kernel_issue: ["多少个内核的问题", "内核问题", "内核", "kernel_issue", "内核类问题"],
+        consult_issue: ["多少个咨询问题", "咨询问题", "咨询", "consult_issue", "咨询类问题"],
+        escalation_help: ["透传求助了多少个", "透传求助", "透传", "escalation_help", "求助数量"],
+        issue_ticket_output: ["问题单数量", "提了多少问题单", "问题单", "issue_ticket_output", "问题单产出"],
+        requirement_ticket_output: ["需求单数量", "提了多少需求单", "需求单", "requirement_ticket_output", "需求单产出"],
+        wiki_output: ["wiki输出数量", "输出多少wiki", "wiki", "wiki_output", "wiki产出"],
+        analysis_report_output: ["问题分析报告数量", "输出多少问题分析报告", "分析报告", "analysis_report_output", "报告产出"],
+      };
+    }
+
+    // 查找列名（简化版本）
+    function findColumn(columns, aliases) {
+      const normalizedCols = columns.map(c => normalizeColName(c));
+      for (const alias of aliases) {
+        const normalizedAlias = normalizeColName(alias);
+        for (let i = 0; i < columns.length; i++) {
+          if (normalizedCols[i] === normalizedAlias || normalizedCols[i].includes(normalizedAlias)) {
+            return columns[i];
+          }
+        }
+      }
+      return null;
+    }
+
+    function normalizeColName(name) {
+      return String(name).replace(/[\s\t()（）]/g, "").toLowerCase();
+    }
+
+    // 绑定事件
+    newMappingBtn.addEventListener("click", () => showEditPanel());
+    cancelMappingBtn.addEventListener("click", hideEditPanel);
+    saveMappingBtn.addEventListener("click", saveMappingConfig);
+    refreshMappingsBtn.addEventListener("click", loadColumnMappings);
+    mappingSelect.addEventListener("change", () => {
+      currentMappingId = mappingSelect.value ? parseInt(mappingSelect.value, 10) : null;
+      if (latestColumns.length > 0) {
+        updateMappingMatchStatus();
+      }
+    });
+
+    function showError(msg) {
+      err.textContent = msg;
+      err.classList.add("show");
+    }
+    function clearError() {
+      err.classList.remove("show");
+      err.textContent = "";
+    }
+    function destroyCharts() {
+      Object.values(charts).forEach((c) => c.destroy());
+      Object.keys(charts).forEach((k) => delete charts[k]);
+    }
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = String(s || "");
+      return d.innerHTML;
+    }
+    function fmt(v) {
+      return Number(v || 0).toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+    }
+    function openModelConfig() {
+      modelModal.classList.add("show");
+      modelModal.setAttribute("aria-hidden", "false");
+    }
+    function closeModelConfig() {
+      modelModal.classList.remove("show");
+      modelModal.setAttribute("aria-hidden", "true");
+    }
+
+    openModelBtn.addEventListener("click", openModelConfig);
+    closeModelBtn.addEventListener("click", closeModelConfig);
+    modelModal.addEventListener("click", (e) => {
+      if (e.target === modelModal) closeModelConfig();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeModelConfig();
+    });
+    saveCustomModeBtn.addEventListener("click", saveCustomModeToPg);
+    selectAllColumnsBtn.addEventListener("click", () => {
+      customColumnPicks.querySelectorAll("input[type='checkbox']").forEach((el) => {
+        el.checked = true;
+      });
+    });
+    clearColumnsBtn.addEventListener("click", () => {
+      customColumnPicks.querySelectorAll("input[type='checkbox']").forEach((el) => {
+        el.checked = false;
+      });
+    });
+    refreshCustomModesBtn.addEventListener("click", loadCustomModeList);
+
+    ["dragenter", "dragover"].forEach((ev) => {
+      drop.addEventListener(ev, (e) => {
+        e.preventDefault();
+        drop.classList.add("dragover");
+      });
+    });
+    ["dragleave", "drop"].forEach((ev) => {
+      drop.addEventListener(ev, () => drop.classList.remove("dragover"));
+    });
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const f = e.dataTransfer.files[0];
+      if (f) upload(f);
+    });
+    fileInput.addEventListener("change", () => {
+      const f = fileInput.files[0];
+      if (f) upload(f);
+    });
+
+    async function upload(file) {
+      clearError();
+      result.style.display = "none";
+      loading.classList.add("show");
+      const fd = new FormData();
+      fd.append("file", file);
+      
+      // 获取当前选择的列映射配置ID
+      const selectedMappingId = mappingSelect.value;
+      let uploadUrl = "/api/upload";
+      if (selectedMappingId) {
+        uploadUrl += `?column_mapping_id=${selectedMappingId}`;
+      }
+      
+      try {
+        const res = await fetch(uploadUrl, { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showError(data.detail || `请求失败 (${res.status})`);
+          return;
+        }
+        clearError();
+        render(data);
+        result.style.display = "block";
+        hideWelcome();  // 隐藏欢迎界面
+        
+        // 更新列匹配状态显示
+        if (data.columns) {
+          latestColumns = data.columns;
+          updateMappingMatchStatus();
+        }
+      } catch (e) {
+        showError("网络错误，请确认服务已启动。");
+      } finally {
+        loading.classList.remove("show");
+      }
+    }
+
+    function renderFormula(analysis) {
+      const w = analysis.weights || {};
+      document.getElementById("formula").innerHTML =
+        `综合工作量分 = ` +
+        `<code>${fmt(w.oncall_open)}×oncall未闭环</code> + ` +
+        `<code>${fmt(w.pending_ticket)}×待处理工单</code> + ` +
+        `<code>${fmt(w.new_issue_yesterday)}×昨日新增问题</code> + ` +
+        `<code>${fmt(w.governance_issue)}×管控</code> + ` +
+        `<code>${fmt(w.kernel_issue)}×内核</code> + ` +
+        `<code>${fmt(w.consult_issue)}×咨询</code> ` +
+        `- <code>${fmt(Math.abs(w.escalation_help || 0))}×透传求助</code> + ` +
+        `<code>${fmt(w.issue_ticket_output)}×问题单</code> + ` +
+        `<code>${fmt(w.requirement_ticket_output)}×需求单</code> + ` +
+        `<code>${fmt(w.wiki_output)}×wiki</code> + ` +
+        `<code>${fmt(w.analysis_report_output)}×分析报告</code>`;
+    }
+
+    function scoreByWeights(person, weights) {
+      return (
+        person.oncall_open * (weights.oncall_open || 0) +
+        person.pending_ticket * (weights.pending_ticket || 0) +
+        person.new_issue_yesterday * (weights.new_issue_yesterday || 0) +
+        person.governance_issue * (weights.governance_issue || 0) +
+        person.kernel_issue * (weights.kernel_issue || 0) +
+        person.consult_issue * (weights.consult_issue || 0) +
+        person.escalation_help * (weights.escalation_help || 0) +
+        person.issue_ticket_output * (weights.issue_ticket_output || 0) +
+        person.requirement_ticket_output * (weights.requirement_ticket_output || 0) +
+        person.wiki_output * (weights.wiki_output || 0) +
+        person.analysis_report_output * (weights.analysis_report_output || 0)
+      );
+    }
+
+    function riskLevel(person) {
+      const riskScore = person.escalation_help * 1.2 + person.pending_ticket * 0.7 + person.oncall_open * 0.65;
+      if (riskScore >= 18) return "high";
+      if (riskScore >= 10) return "medium";
+      return "low";
+    }
+
+    function rebuildAnalysisByWeights(base, weights) {
+      const people = (base.people || []).map((p) => {
+        const score = scoreByWeights(p, weights);
+        return { ...p, workload_score: Number(score.toFixed(2)), risk_level: riskLevel(p) };
+      });
+      people.sort((a, b) => b.workload_score - a.workload_score);
+      const byEscalation = [...people].sort((a, b) => b.escalation_help - a.escalation_help);
+      const totals = {
+        oncall_open: 0, pending_ticket: 0, new_issue_yesterday: 0, governance_issue: 0, kernel_issue: 0, consult_issue: 0,
+        escalation_help: 0, issue_ticket_output: 0, requirement_ticket_output: 0, wiki_output: 0, analysis_report_output: 0,
+        daily_issue_total: 0, workload_score: 0, risk_score: 0, encourage_score: 0,
+      };
+      const riskLevelCounts = { high: 0, medium: 0, low: 0 };
+      people.forEach((p) => {
+        Object.keys(totals).forEach((k) => {
+          if (typeof p[k] === "number") totals[k] += p[k];
+        });
+        const r = p.escalation_help * 1.2 + p.pending_ticket * 0.7 + p.oncall_open * 0.65;
+        totals.risk_score += r;
+        totals.encourage_score += p.issue_ticket_output + p.requirement_ticket_output + p.wiki_output + p.analysis_report_output;
+        riskLevelCounts[p.risk_level] += 1;
+      });
+      Object.keys(totals).forEach((k) => totals[k] = Number(totals[k].toFixed(2)));
+      totals.gaussdb_focus_index = Number((
+        totals.new_issue_yesterday * 1.3 + totals.kernel_issue * 1.45 + totals.governance_issue * 1.05 +
+        totals.consult_issue * 0.9 - totals.escalation_help * 0.7 + totals.wiki_output * 1.25 + totals.analysis_report_output * 1.15
+      ).toFixed(2));
+      return {
+        ...base,
+        weights: { ...weights },
+        people,
+        transparent_ranking: byEscalation.map((p) => ({ name: p.name, escalation_help: p.escalation_help })),
+        totals,
+        risk_level_counts: riskLevelCounts,
+        top_score_names: people.slice(0, 3).map((p) => p.name),
+        top_transparent_names: byEscalation.slice(0, 3).map((p) => p.name),
+        high_risk_names: people.filter((p) => p.risk_level === "high").slice(0, 5).map((p) => p.name),
+      };
+    }
+
+    function renderWeightControls(a) {
+      const container = document.getElementById("weight-grid");
+      container.innerHTML = Object.entries(WEIGHT_LABELS)
+        .map(([k, label]) =>
+          `<div class="weight-item"><label for="w-${k}">${escapeHtml(label)}</label><input id="w-${k}" type="number" step="0.05" value="${fmt(a.weights[k])}" data-key="${k}" /></div>`
+        )
+        .join("");
+      container.querySelectorAll("input[data-key]").forEach((input) => {
+        input.addEventListener("input", () => {
+          const nextWeights = { ...currentAnalysis.weights };
+          container.querySelectorAll("input[data-key]").forEach((el) => {
+            nextWeights[el.dataset.key] = Number(el.value || 0);
+          });
+          currentAnalysis = rebuildAnalysisByWeights(currentAnalysis, nextWeights);
+          renderFormula(currentAnalysis);
+          renderKpis({ workload_analysis: currentAnalysis });
+          renderCharts(currentAnalysis);
+          renderRiskPanels(currentAnalysis);
+          renderPersonTable(currentAnalysis);
+        });
+      });
+    }
+
+    function renderCustomColumnPicks(columns) {
+      customColumnPicks.innerHTML = columns
+        .map(
+          (c, idx) =>
+            `<label class="pick"><input type="checkbox" data-col="${escapeHtml(c)}" ${idx < 8 ? "checked" : ""} /> <span>${escapeHtml(c)}</span></label>`
+        )
+        .join("");
+    }
+
+    function getSelectedCustomColumns() {
+      return Array.from(customColumnPicks.querySelectorAll("input[type='checkbox']:checked"))
+        .map((el) => el.getAttribute("data-col"))
+        .filter(Boolean);
+    }
+
+    async function saveCustomModeToPg() {
+      if (!latestAllRows.length) {
+        customSaveStatus.textContent = "请先上传 Excel 后再保存模式。";
+        return;
+      }
+      const modeName = (customModeNameInput.value || "").trim();
+      if (!modeName) {
+        customSaveStatus.textContent = "请先输入模式名称。";
+        return;
+      }
+      const selectedColumns = getSelectedCustomColumns();
+      if (!selectedColumns.length) {
+        customSaveStatus.textContent = "至少选择一个列。";
+        return;
+      }
+      customSaveStatus.textContent = "正在写入 PostgreSQL...";
+      try {
+        const res = await fetch("/api/custom-mode/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode_name: modeName,
+            selected_columns: selectedColumns,
+            rows: latestAllRows,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          customSaveStatus.textContent = data.detail || "保存失败，请检查数据库连接。";
+          return;
+        }
+        customSaveStatus.textContent = `已保存成功：表 ${data.table_name}，写入 ${data.row_count} 行。`;
+        await loadCustomModeList();
+      } catch (e) {
+        customSaveStatus.textContent = "网络异常，保存失败。";
+      }
+    }
+
+    async function deleteCustomMode(modeName) {
+      if (!modeName) return;
+      const sure = window.confirm(`确认删除模式 "${modeName}" 对应的数据表吗？`);
+      if (!sure) return;
+      try {
+        const res = await fetch("/api/custom-mode/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode_name: modeName }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          customSaveStatus.textContent = data.detail || "删除失败。";
+          return;
+        }
+        customSaveStatus.textContent = `已删除模式：${modeName}`;
+        await loadCustomModeList();
+      } catch (e) {
+        customSaveStatus.textContent = "网络异常，删除失败。";
+      }
+    }
+
+    async function loadCustomModeList() {
+      customModeList.innerHTML = "<div class='mode-item'><small>正在加载模式列表...</small></div>";
+      try {
+        const res = await fetch("/api/custom-mode/list");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          customModeList.innerHTML = `<div class='mode-item'><small>${escapeHtml(data.detail || "读取模式列表失败")}</small></div>`;
+          return;
+        }
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (!items.length) {
+          customModeList.innerHTML = "<div class='mode-item'><small>暂无已保存模式。</small></div>";
+          return;
+        }
+        customModeList.innerHTML = items
+          .map((it) => {
+            const saved = it.last_saved_at ? new Date(it.last_saved_at).toLocaleString() : "-";
+            return `
+              <div class="mode-item">
+                <div>
+                  <div><b>${escapeHtml(it.mode_name || "-")}</b> <small>(${escapeHtml(it.table_name || "-")})</small></div>
+                  <small>行数: ${fmt(it.row_count)} · 最近保存: ${escapeHtml(saved)}</small>
+                </div>
+                <button type="button" class="btn" data-del-mode="${escapeHtml(it.mode_name || "")}">删除</button>
+              </div>
+            `;
+          })
+          .join("");
+        customModeList.querySelectorAll("button[data-del-mode]").forEach((btn) => {
+          btn.addEventListener("click", () => deleteCustomMode(btn.getAttribute("data-del-mode")));
+        });
+      } catch (e) {
+        customModeList.innerHTML = "<div class='mode-item'><small>网络异常，模式列表加载失败。</small></div>";
+      }
+    }
+
+    function renderKpis(data) {
+      const a = data.workload_analysis;
+      const totals = a.totals || {};
+      const avgScore = a.people.length ? totals.workload_score / a.people.length : 0;
+      const encourageTotal = (totals.issue_ticket_output || 0) + (totals.requirement_ticket_output || 0) + (totals.wiki_output || 0) + (totals.analysis_report_output || 0);
+      const dailyByFormula = (totals.governance_issue || 0) + (totals.kernel_issue || 0) + (totals.consult_issue || 0);
+      const risk = a.risk_level_counts || {};
+      document.getElementById("kpis").innerHTML = `
+        <div class="kpi"><span>团队总工作量分</span><b>${fmt(totals.workload_score)}</b></div>
+        <div class="kpi"><span>人均工作量分</span><b>${fmt(avgScore)}</b></div>
+        <div class="kpi"><span>每日问题总量(管控+内核+咨询)</span><b>${fmt(dailyByFormula)}</b></div>
+        <div class="kpi"><span>透传求助总量</span><b class="em-warn">${fmt(totals.escalation_help)}</b></div>
+        <div class="kpi"><span>鼓励项总产出(问题单+需求单+wiki+分析报告)</span><b class="em-good">${fmt(encourageTotal)}</b></div>
+        <div class="kpi"><span>GaussDB现网关注指数</span><b>${fmt(totals.gaussdb_focus_index)}</b></div>
+        <div class="kpi"><span>风险分层(高/中/低)</span><b>${fmt(risk.high || 0)} / ${fmt(risk.medium || 0)} / ${fmt(risk.low || 0)}</b></div>
+        <div class="kpi"><span>工作量Top1</span><b>${escapeHtml((a.top_score_names || [])[0] || "-")}</b></div>
+        <div class="kpi"><span>透传最高人员</span><b class="em-warn">${escapeHtml((a.top_transparent_names || [])[0] || "-")}</b></div>
+        <div class="kpi"><span>参与分析人数</span><b>${fmt(a.people.length)}</b></div>
+      `;
+    }
+
+    function makeCommonOptions(stacked) {
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { labels: { color: "#e8eef4", boxWidth: 12 } },
+        },
+        scales: {
+          x: {
+            stacked: stacked,
+            ticks: { color: "#8b9cb3", maxRotation: 45, minRotation: 0 },
+            grid: { color: "rgba(139,156,179,0.12)" },
+          },
+          y: {
+            beginAtZero: true,
+            stacked: stacked,
+            ticks: { color: "#8b9cb3" },
+            grid: { color: "rgba(139,156,179,0.12)" },
+          },
+        },
+      };
+    }
+
+    function renderCharts(a) {
+      destroyCharts();
+      const people = a.people || [];
+      const labels = people.map((p) => p.name);
+      const issueSorted = [...people].sort((x, y) => y.escalation_help - x.escalation_help);
+
+      charts.score = new Chart(document.getElementById("chart-score"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{ label: "综合工作量分", data: people.map((p) => p.workload_score), backgroundColor: "#3d8bfd" }],
+        },
+        options: makeCommonOptions(false),
+      });
+
+      charts.trans = new Chart(document.getElementById("chart-trans"), {
+        type: "bar",
+        data: {
+          labels: issueSorted.map((p) => p.name),
+          datasets: [{ label: "透传求助", data: issueSorted.map((p) => p.escalation_help), backgroundColor: "#f59e0b" }],
+        },
+        options: makeCommonOptions(false),
+      });
+
+      charts.issue = new Chart(document.getElementById("chart-issue-structure"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            { label: "管控", data: people.map((p) => p.governance_issue), backgroundColor: "#22c55e" },
+            { label: "内核", data: people.map((p) => p.kernel_issue), backgroundColor: "#a78bfa" },
+            { label: "咨询", data: people.map((p) => p.consult_issue), backgroundColor: "#14b8a6" },
+          ],
+        },
+        options: makeCommonOptions(true),
+      });
+
+      charts.output = new Chart(document.getElementById("chart-output"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            { label: "问题单", data: people.map((p) => p.issue_ticket_output), backgroundColor: "#fb7185" },
+            { label: "需求单", data: people.map((p) => p.requirement_ticket_output), backgroundColor: "#f97316" },
+            { label: "wiki", data: people.map((p) => p.wiki_output), backgroundColor: "#38bdf8" },
+            { label: "分析报告", data: people.map((p) => p.analysis_report_output), backgroundColor: "#22c55e" },
+          ],
+        },
+        options: makeCommonOptions(true),
+      });
+    }
+
+    function renderRiskPanels(a) {
+      const highList = document.getElementById("risk-high-list");
+      const sugList = document.getElementById("risk-suggestion-list");
+      const highPeople = (a.people || []).filter((p) => p.risk_level === "high");
+      if (!highPeople.length) {
+        highList.innerHTML = "<li>当前无高风险人员。</li>";
+      } else {
+        highList.innerHTML = highPeople
+          .map((p) => `<li><b>${escapeHtml(p.name)}</b>：透传 ${fmt(p.escalation_help)}，待处理 ${fmt(p.pending_ticket)}，oncall未闭环 ${fmt(p.oncall_open)}</li>`)
+          .join("");
+      }
+
+      const suggestions = [];
+      (a.people || []).forEach((p) => {
+        (p.suggestions || []).forEach((s) => suggestions.push(`${p.name}: ${s}`));
+      });
+      const unique = [...new Set(suggestions)].slice(0, 8);
+      sugList.innerHTML = unique.length ? unique.map((s) => `<li>${escapeHtml(s)}</li>`).join("") : "<li>暂无建议。</li>";
+    }
+
+    function renderPersonTable(a) {
+      const people = (a.people || []).map((p, i) => ({ ...p, workload_rank: i + 1 }));
+      const transRankMap = {};
+      (a.transparent_ranking || []).forEach((x, i) => {
+        transRankMap[x.name] = i + 1;
+      });
+      if (!people.length) {
+        document.getElementById("person-table").innerHTML = "<tbody><tr><td>无工作量分析数据</td></tr></tbody>";
+        return;
+      }
+      document.getElementById("person-table").innerHTML =
+        "<thead><tr>" +
+        "<th>工作量排名</th><th>姓名</th><th>综合工作量分</th><th>风险等级</th><th>透传排序</th><th>透传求助</th>" +
+        "<th>昨日新增问题</th><th>每日问题数量</th><th>管控</th><th>内核</th><th>咨询</th>" +
+        "<th>oncall未闭环</th><th>待处理工单</th><th>问题单</th><th>需求单</th><th>wiki</th><th>分析报告</th>" +
+        "</tr></thead><tbody>" +
+        people
+          .map(
+            (p) =>
+              "<tr>" +
+              `<td>${p.workload_rank}</td><td>${escapeHtml(p.name)}</td><td>${fmt(p.workload_score)}</td><td>${escapeHtml(p.risk_level)}</td><td>${transRankMap[p.name] || "-"}</td><td>${fmt(p.escalation_help)}</td>` +
+              `<td>${fmt(p.new_issue_yesterday)}</td><td>${fmt(p.daily_issue_total)}</td><td>${fmt(p.governance_issue)}</td><td>${fmt(p.kernel_issue)}</td><td>${fmt(p.consult_issue)}</td>` +
+              `<td>${fmt(p.oncall_open)}</td><td>${fmt(p.pending_ticket)}</td><td>${fmt(p.issue_ticket_output)}</td><td>${fmt(p.requirement_ticket_output)}</td><td>${fmt(p.wiki_output)}</td><td>${fmt(p.analysis_report_output)}</td>` +
+              "</tr>"
+          )
+          .join("") +
+        "</tbody>";
+    }
+
+    function renderBase(data) {
+      const stats = document.getElementById("stats");
+      stats.innerHTML = `
+        <div class="kpi"><span>总行数</span><b>${data.shape.rows}</b></div>
+        <div class="kpi"><span>总列数</span><b>${data.shape.cols}</b></div>
+        <div class="kpi"><span>预览行数</span><b>${data.preview_rows.length}</b></div>
+        <div class="kpi"><span>数据完整度提示</span><b>${data.preview_truncated ? "超200行(已截断预览)" : "预览完整"}</b></div>
+      `;
+
+      const meta = document.getElementById("meta");
+      meta.innerHTML = data.columns
+        .map((c) => {
+          const dtype = data.dtypes[c] || "";
+          const isNumeric = dtype.includes("int") || dtype.includes("float") || dtype.includes("number");
+          const typeIcon = isNumeric ? "📊" : "📝";
+          const typeLabel = isNumeric ? "数值型" : "文本型";
+          const typeColor = isNumeric ? "#9bc0ff" : "#f59e0b";
+          const missing = data.missing_counts[c] ?? 0;
+          const missingBadge = missing > 0 ? `<span style="background:rgba(248,113,113,0.18);color:#f87171;padding:0.08rem 0.32rem;border-radius:4px;font-size:0.72rem;margin-left:0.3rem">缺失 ${missing}</span>` : `<span style="background:rgba(34,197,94,0.18);color:#22c55e;padding:0.08rem 0.32rem;border-radius:4px;font-size:0.72rem;margin-left:0.3rem">完整</span>`;
+          return `<div class="meta-item" style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap">
+            <span style="font-size:1rem">${typeIcon}</span>
+            <code style="color:${typeColor};font-weight:500">${escapeHtml(c)}</code>
+            <span style="color:var(--muted);font-size:0.75rem">${typeLabel}</span>
+            ${missingBadge}
+          </div>`;
+        })
+        .join("");
+
+      const descSec = document.getElementById("describe-section");
+      const descTable = document.getElementById("describe-table");
+      if (data.numeric_describe && Object.keys(data.numeric_describe).length) {
+        descSec.style.display = "block";
+        const rows = Object.entries(data.numeric_describe);
+        const metricKeys = Object.keys(rows[0][1]);
+        descTable.innerHTML =
+          "<thead><tr><th>列</th>" +
+          metricKeys.map((k) => "<th>" + escapeHtml(k) + "</th>").join("") +
+          "</tr></thead><tbody>" +
+          rows
+            .map(([col, vals]) =>
+              "<tr><th>" + escapeHtml(col) + "</th>" +
+              metricKeys.map((k) => "<td>" + escapeHtml(vals[k]) + "</td>").join("") +
+              "</tr>"
+            )
+            .join("") +
+          "</tbody>";
+      } else {
+        descSec.style.display = "none";
+      }
+
+      document.getElementById("preview-note").textContent = data.preview_truncated
+        ? "（仅显示前 " + data.preview_rows.length + " 行）"
+        : "";
+      const prev = document.getElementById("preview");
+      if (!data.preview_rows.length) {
+        prev.innerHTML = "<tbody><tr><td>无数据行</td></tr></tbody>";
+      } else {
+        const cols = data.columns;
+        prev.innerHTML =
+          "<thead><tr>" + cols.map((c) => "<th>" + escapeHtml(c) + "</th>").join("") + "</tr></thead><tbody>" +
+          data.preview_rows
+            .map((row) => "<tr>" + cols.map((c) => "<td>" + escapeHtml(row[c]) + "</td>").join("") + "</tr>")
+            .join("") +
+          "</tbody>";
+      }
+    }
+
+    function render(data) {
+      const a = data.workload_analysis;
+      if (!a || !a.people || !a.people.length) {
+        showError("未识别到工作量分析模板字段。请至少包含：姓名、oncall未闭环、待处理工单、昨日新增、管控/内核/咨询、透传求助、问题单/需求单/wiki/分析报告。");
+        return;
+      }
+      latestAllRows = Array.isArray(data.all_rows) ? data.all_rows : data.preview_rows;
+      latestColumns = Array.isArray(data.columns) ? data.columns : [];
+      renderCustomColumnPicks(latestColumns);
+      customSaveStatus.textContent = data.all_rows_truncated
+        ? "提示：保存时仅包含前 5000 行数据。"
+        : "";
+      loadCustomModeList();
+      currentAnalysis = a;
+      renderFormula(currentAnalysis);
+      renderWeightControls(currentAnalysis);
+      renderKpis({ workload_analysis: currentAnalysis });
+      renderCharts(currentAnalysis);
+      renderRiskPanels(currentAnalysis);
+      renderPersonTable(currentAnalysis);
+      renderBase(data);
+    }
+
+    // ========== 历史数据管理功能（支持日期筛选） ==========
+    const historySection = document.getElementById("history-section");
+    const uploadHistoryList = document.getElementById("upload-history-list");
+    const historyStatus = document.getElementById("history-status");
+    const loadLatestBtn = document.getElementById("load-latest-btn");
+    const refreshHistoryBtn = document.getElementById("refresh-history-btn");
+    const startDateInput = document.getElementById("start-date");
+    const endDateInput = document.getElementById("end-date");
+    const applyDateFilterBtn = document.getElementById("apply-date-filter-btn");
+    const clearDateFilterBtn = document.getElementById("clear-date-filter-btn");
+    
+    let availableDates = [];
+
+    // 页面加载时自动检查并加载最新数据
+    async function initHistorySection() {
+      try {
+        const res = await fetch("/api/upload/history");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          historySection.style.display = "none";
+          return;
+        }
+        const items = Array.isArray(data.items) ? data.items : [];
+        availableDates = Array.isArray(data.available_dates) ? data.available_dates : [];
+        
+        if (items.length > 0) {
+          historySection.style.display = "block";
+          renderUploadHistory(items);
+          historyStatus.textContent = `共 ${items.length} 个日期的历史数据`;
+          // 设置日期选择器的默认范围
+          if (availableDates.length > 0) {
+            endDateInput.value = availableDates[0];
+            startDateInput.value = availableDates[Math.min(availableDates.length - 1, 30)];
+          }
+        } else {
+          historySection.style.display = "none";
+        }
+      } catch (e) {
+        historySection.style.display = "none";
+      }
+    }
+
+    // 快捷日期按钮绑定
+    document.querySelectorAll(".quick-date-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const range = parseInt(btn.getAttribute("data-range"), 10);
+        const today = new Date();
+        const startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - range);
+        startDateInput.value = startDate.toISOString().split('T')[0];
+        endDateInput.value = today.toISOString().split('T')[0];
+        // 高亮当前按钮
+        document.querySelectorAll(".quick-date-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        // 自动应用筛选
+        applyDateFilter();
+      });
+    });
+
+    // 应用日期筛选
+    async function applyDateFilter() {
+      const startDate = startDateInput.value;
+      const endDate = endDateInput.value;
+      
+      if (!startDate && !endDate) {
+        await initHistorySection();
+        return;
+      }
+      
+      clearError();
+      result.style.display = "none";
+      loading.classList.add("show");
+      loading.textContent = "正在筛选历史数据...";
+      
+      try {
+        let url = "/api/upload/history";
+        const params = [];
+        if (startDate) params.push(`start_date=${startDate}`);
+        if (endDate) params.push(`end_date=${endDate}`);
+        if (params.length > 0) url += "?" + params.join("&");
+        
+        const res = await fetch(url);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showError(data.detail || `筛选失败 (${res.status})`);
+          return;
+        }
+        
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (items.length > 0) {
+          renderUploadHistory(items);
+          historyStatus.textContent = `筛选结果：共 ${items.length} 个日期`;
+          if (data.start_date) startDateInput.value = data.start_date;
+          if (data.end_date) endDateInput.value = data.end_date;
+        } else {
+          uploadHistoryList.innerHTML = "<div class='mode-item'><small>筛选范围内暂无数据。</small></div>";
+          historyStatus.textContent = "筛选范围内暂无数据";
+        }
+      } catch (e) {
+        showError("网络错误，筛选失败。");
+      } finally {
+        loading.classList.remove("show");
+        loading.textContent = "正在解析并计算工作量模型...";
+      }
+    }
+
+    // 清除日期筛选
+    clearDateFilterBtn.addEventListener("click", () => {
+      startDateInput.value = "";
+      endDateInput.value = "";
+      document.querySelectorAll(".quick-date-btn").forEach(b => b.classList.remove("active"));
+      initHistorySection();
+    });
+
+    applyDateFilterBtn.addEventListener("click", applyDateFilter);
+
+    function renderUploadHistory(items) {
+      uploadHistoryList.innerHTML = items
+        .map((item) => {
+          const date = item.date || "-";
+          const sessions = Array.isArray(item.sessions) ? item.sessions : [];
+          const sessionsHtml = sessions
+            .map((s) => {
+              const time = s.upload_time ? new Date(s.upload_time).toLocaleTimeString() : "-";
+              const filename = escapeHtml(s.filename || "未知文件");
+              const rowCol = `${fmt(s.row_count)}行/${fmt(s.col_count)}列`;
+              const workloadBadge = s.has_workload_analysis 
+                ? '<span style="background:rgba(34,197,94,0.2);color:#22c55e;font-size:0.7rem;padding:0.15rem 0.35rem;border-radius:4px;margin-left:0.3rem;">有分析</span>'
+                : '<span style="background:rgba(248,113,113,0.2);color:#f87171;font-size:0.7rem;padding:0.15rem 0.35rem;border-radius:4px;margin-left:0.3rem;">无分析</span>';
+              return `
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;background:linear-gradient(135deg, rgba(61,139,253,0.05) 0%, rgba(10,14,20,0.3) 100%);border-radius:8px;margin-top:0.25rem;border:1px solid rgba(61,139,253,0.1);">
+                  <div style="display:flex;align-items:center;gap:0.4rem;">
+                    <span style="font-size:0.75rem;color:#d3deef;">${escapeHtml(time)}</span>
+                    <span style="font-size:0.73rem;color:#9bc0ff;font-weight:500;">${filename}</span>
+                    ${workloadBadge}
+                  </div>
+                  <div style="display:flex;align-items:center;gap:0.6rem;">
+                    <span style="font-size:0.72rem;color:var(--muted);">${rowCol}</span>
+                    <button type="button" class="btn" style="font-size:0.72rem;padding:0.3rem 0.5rem;" data-load-session="${s.session_id}">加载</button>
+                    <button type="button" class="btn" style="font-size:0.72rem;padding:0.3rem 0.5rem;background:rgba(248,113,113,0.15);border-color:rgba(248,113,113,0.3);" data-delete-session="${s.session_id}">删除</button>
+                  </div>
+                </div>
+              `;
+            })
+            .join("");
+          return `
+            <div class="mode-item" style="flex-direction:column;align-items:flex-start;padding:0.6rem 0.7rem;background:linear-gradient(135deg, rgba(26,35,50,0.6) 0%, rgba(10,14,20,0.7) 100%);border-radius:10px;border:1px solid rgba(61,139,253,0.15);">
+              <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                  <span style="font-size:1.1rem;color:var(--accent);">📅</span>
+                  <b style="font-size:0.9rem;color:#9bc0ff;">${escapeHtml(date)}</b>
+                </div>
+                <span style="font-size:0.72rem;color:var(--muted);background:rgba(61,139,253,0.1);padding:0.2rem 0.45rem;border-radius:5px;">${sessions.length} 条记录</span>
+              </div>
+              <div style="width:100%;margin-top:0.4rem;">${sessionsHtml}</div>
+            </div>
+          `;
+        })
+        .join("");
+
+      // 绑定加载和删除事件
+      uploadHistoryList.querySelectorAll("button[data-load-session]").forEach((btn) => {
+        btn.addEventListener("click", () => loadSessionData(parseInt(btn.getAttribute("data-load-session"), 10)));
+      });
+      uploadHistoryList.querySelectorAll("button[data-delete-session]").forEach((btn) => {
+        btn.addEventListener("click", () => deleteSessionData(parseInt(btn.getAttribute("data-delete-session"), 10)));
+      });
+    }
+
+    async function loadSessionData(sessionId) {
+      clearError();
+      result.style.display = "none";
+      loading.classList.add("show");
+      loading.textContent = "正在加载历史数据...";
+      try {
+        const res = await fetch(`/api/upload/session/${sessionId}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showError(data.detail || `加载失败 (${res.status})`);
+          return;
+        }
+        clearError();
+        render(data);
+        result.style.display = "block";
+        hideWelcome();  // 隐藏欢迎界面
+        historyStatus.textContent = `已加载: ${data.session_info?.filename || "未知文件"} (${data.session_info?.upload_date || "-"})`;
+      } catch (e) {
+        showError("网络错误，加载历史数据失败。");
+      } finally {
+        loading.classList.remove("show");
+        loading.textContent = "正在解析并计算工作量模型...";
+      }
+    }
+
+    async function loadLatestData() {
+      clearError();
+      result.style.display = "none";
+      loading.classList.add("show");
+      loading.textContent = "正在加载最新历史数据...";
+      try {
+        const res = await fetch("/api/upload/latest");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) {
+          showError(data.detail || data.message || "暂无历史数据");
+          historySection.style.display = "none";
+          return;
+        }
+        clearError();
+        render(data);
+        result.style.display = "block";
+        hideWelcome();  // 隐藏欢迎界面
+        historyStatus.textContent = `已加载最新数据: ${data.session_info?.filename || "未知文件"} (${data.session_info?.upload_date || "-"})`;
+        // 刷新历史列表
+        await initHistorySection();
+      } catch (e) {
+        showError("网络错误，加载最新数据失败。");
+      } finally {
+        loading.classList.remove("show");
+        loading.textContent = "正在解析并计算工作量模型...";
+      }
+    }
+
+    async function deleteSessionData(sessionId) {
+      if (!sessionId) return;
+      const sure = window.confirm("确认删除该历史记录及其数据吗？");
+      if (!sure) return;
+      try {
+        const res = await fetch(`/api/upload/delete/${sessionId}`, { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          historyStatus.textContent = data.detail || "删除失败";
+          return;
+        }
+        historyStatus.textContent = "已删除历史记录";
+        await initHistorySection();
+      } catch (e) {
+        historyStatus.textContent = "网络异常，删除失败";
+      }
+    }
+
+    // 绑定按钮事件
+    loadLatestBtn.addEventListener("click", loadLatestData);
+    refreshHistoryBtn.addEventListener("click", initHistorySection);
+
+    // 页面加载完成后初始化
+    window.addEventListener("DOMContentLoaded", () => {
+      initHistorySection();
+      loadColumnMappings();
+      // 延迟500ms后尝试自动加载最新数据
+      setTimeout(() => {
+        if (historySection.style.display !== "none") {
+          // 有历史数据时，不自动加载（用户可选择点击"加载最新数据"按钮）
+          historyStatus.textContent = '有历史数据，可点击"加载最新数据"快速查看上次的分析结果。';
+        }
+      }, 500);
+    });
+  </script>
