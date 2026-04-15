@@ -413,7 +413,7 @@
       fd.append("file", file);
       
       // 获取当前选择的列映射配置ID
-      const selectedMappingId = mappingSelect.value;
+      const selectedMappingId = mappingSelect ? mappingSelect.value : "";
       let uploadUrl = "/api/upload";
       if (selectedMappingId) {
         uploadUrl += `?column_mapping_id=${selectedMappingId}`;
@@ -427,7 +427,13 @@
           return;
         }
         clearError();
-        render(data);
+        try {
+          render(data);
+        } catch (renderErr) {
+          const msg = renderErr && renderErr.message ? renderErr.message : String(renderErr || "未知渲染异常");
+          showError(`上传成功，但页面渲染失败：${msg}`);
+          return;
+        }
         result.style.display = "block";
         hideWelcome();  // 隐藏欢迎界面
         
@@ -437,7 +443,8 @@
           updateMappingMatchStatus();
         }
       } catch (e) {
-        showError("网络错误，请确认服务已启动。");
+        const msg = e && e.message ? e.message : "未知网络异常";
+        showError(`网络错误：${msg}`);
       } finally {
         loading.classList.remove("show");
       }
@@ -704,6 +711,10 @@
 
     function renderCharts(a) {
       destroyCharts();
+      // 图表库加载失败时，不阻断核心数据展示
+      if (typeof Chart === "undefined") {
+        return;
+      }
       const people = a.people || [];
       const labels = people.map((p) => p.name);
       const issueSorted = [...people].sort((x, y) => y.escalation_help - x.escalation_help);
@@ -853,9 +864,12 @@
         descSec.style.display = "none";
       }
 
-      document.getElementById("preview-note").textContent = data.preview_truncated
-        ? "（仅显示前 " + data.preview_rows.length + " 行）"
-        : "";
+      const previewNoteEl = document.getElementById("preview-note");
+      if (previewNoteEl) {
+        previewNoteEl.textContent = data.preview_truncated
+          ? "（仅显示前 " + data.preview_rows.length + " 行）"
+          : "";
+      }
       const prev = document.getElementById("preview");
       if (!data.preview_rows.length) {
         prev.innerHTML = "<tbody><tr><td>无数据行</td></tr></tbody>";
