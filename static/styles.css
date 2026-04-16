@@ -1319,75 +1319,100 @@
       margin-bottom: 1.5rem;
     }
     
-    /* 核心指标外挂栏（固定顶部） */
-    .kpi-dock {
+    /* 核心指标侧边栏（左侧可折叠） */
+    .kpi-sidebar {
       position: fixed;
-      top: 70px;
+      top: 60px;
       left: 0;
-      right: 0;
+      bottom: 0;
       z-index: 100;
       background: var(--surface);
-      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
       backdrop-filter: blur(20px);
-      transition: all 0.3s ease;
-    }
-    .kpi-dock.collapsed {
-      max-height: 50px;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      width: 0;
       overflow: hidden;
     }
-    .kpi-dock-header {
+    .kpi-sidebar.open {
+      width: 280px;
+    }
+    /* 侧边栏展开按钮（固定在左侧边缘） */
+    .sidebar-toggle-btn {
+      position: fixed;
+      top: 80px;
+      left: 0;
+      z-index: 99;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: none;
+      border-radius: 0 8px 8px 0;
+      padding: 0.6rem 0.8rem;
+      cursor: pointer;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      padding: 0.6rem 1.5rem;
+      gap: 0.3rem;
+      color: var(--muted);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+    }
+    .sidebar-toggle-btn:hover {
+      color: var(--accent);
+      background: var(--surface-hover);
+      padding-left: 1rem;
+    }
+    .kpi-sidebar.open ~ .sidebar-toggle-btn {
+      left: 280px;
+      opacity: 0.6;
+    }
+    .kpi-sidebar.open ~ .sidebar-toggle-btn:hover {
+      opacity: 1;
+    }
+    .toggle-arrow {
+      font-size: 0.75rem;
+      transition: transform 0.3s;
+    }
+    .kpi-sidebar.open ~ .sidebar-toggle-btn .toggle-arrow {
+      transform: rotate(180deg);
+    }
+    .toggle-text {
+      font-size: 0.78rem;
+      font-weight: 500;
+    }
+    /* 侧边栏内容 */
+    .sidebar-content {
+      padding: 0.8rem;
+      height: 100%;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-header {
+      padding: 0.6rem 0.8rem;
       border-bottom: 1px solid var(--border);
+      margin-bottom: 0.8rem;
     }
-    .kpi-dock.collapsed .kpi-dock-header {
-      border-bottom: none;
-    }
-    .kpi-dock-title {
-      font-size: 0.9rem;
+    .sidebar-title {
+      font-size: 0.95rem;
       color: var(--text);
       font-weight: 600;
       display: flex;
       align-items: center;
       gap: 0.5rem;
     }
-    .kpi-dock-toggle {
-      background: var(--btn-bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.3rem 0.5rem;
-      cursor: pointer;
-      color: var(--muted);
-      transition: all 0.2s;
-    }
-    .kpi-dock-toggle:hover {
-      color: var(--accent);
-      border-color: var(--accent);
-    }
-    .kpi-dock.collapsed .kpi-dock-toggle svg {
-      transform: rotate(180deg);
-    }
-    .kpi-dock-content {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 0.8rem;
-      padding: 0.8rem 1.5rem;
-      max-height: 200px;
-      overflow: hidden;
-    }
-    .kpi-dock.collapsed .kpi-dock-content {
-      display: none;
-    }
-    .kpi-dock .kpi {
+    /* 侧边栏中的KPI卡片竖向排列 */
+    #kpis-sidebar .kpi {
       padding: 0.8rem 1rem;
       background: var(--surface-2);
+      margin-bottom: 0.6rem;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
     }
-    .kpi-dock .kpi b {
-      font-size: 1.4rem;
+    #kpis-sidebar .kpi b {
+      font-size: 1.2rem;
+      margin-top: 0.3rem;
     }
-    .kpi-dock .kpi span {
+    #kpis-sidebar .kpi span {
       font-size: 0.72rem;
     }
     
@@ -1551,26 +1576,24 @@
     
     /* 响应式调整 */
     @media (max-width: 1000px) {
-      .kpi-dock {
-        top: 60px;
+      .kpi-sidebar.open {
+        width: 220px;
       }
-      .kpi-dock-content {
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      }
-      .quick-actions {
-        justify-content: center;
+      .kpi-sidebar.open ~ .sidebar-toggle-btn {
+        left: 220px;
       }
     }
     @media (max-width: 520px) {
-      .kpi-dock {
-        top: 50px;
+      .kpi-sidebar.open {
+        width: 180px;
       }
-      .kpi-dock-content {
-        grid-template-columns: repeat(2, 1fr);
-        padding: 0.6rem;
+      .kpi-sidebar.open ~ .sidebar-toggle-btn {
+        left: 180px;
       }
-      .quick-action-btn {
-        flex: 1;
-        justify-content: center;
+      #kpis-sidebar .kpi {
+        padding: 0.6rem 0.8rem;
+      }
+      #kpis-sidebar .kpi b {
+        font-size: 1rem;
       }
     }

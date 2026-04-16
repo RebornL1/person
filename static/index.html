@@ -37,17 +37,17 @@
   <!-- 鼠标跟随光晕 -->
   <div class="cursor-glow" id="cursor-glow"></div>
   
-  <!-- 核心指标外挂栏（固定顶部） -->
-  <div class="kpi-dock" id="kpi-dock" style="display:none;">
-    <div class="kpi-dock-header">
-      <span class="kpi-dock-title">📊 核心指标总览</span>
-      <button type="button" class="kpi-dock-toggle" id="kpi-dock-toggle" title="折叠/展开">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 15l-6-6-6 6"/>
-        </svg>
-      </button>
+  <!-- 核心指标侧边栏（左侧可折叠） -->
+  <div class="kpi-sidebar" id="kpi-sidebar" style="display:none;">
+    <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" title="展开核心指标">
+      <span class="toggle-arrow">▶</span>
+      <span class="toggle-text">指标</span>
+    </button>
+    <div class="sidebar-content" id="kpis-sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">📊 核心指标总览</span>
+      </div>
     </div>
-    <div class="kpi-dock-content" id="kpis-dock"></div>
   </div>
   
   <div class="wrap">

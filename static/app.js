@@ -729,12 +729,17 @@
         <div class="kpi"><span>透传最高人员</span><b class="em-warn">${escapeHtml((a.top_transparent_names || [])[0] || "-")}</b></div>
         <div class="kpi"><span>参与分析人数</span><b>${fmt(a.people.length)}</b></div>
       `;
-      // 更新外挂栏
-      const kpiDockContent = document.getElementById("kpis-dock");
-      const kpiDock = document.getElementById("kpi-dock");
-      if (kpiDockContent) {
-        kpiDockContent.innerHTML = kpiHtml;
-        if (kpiDock) kpiDock.style.display = "block";
+      // 更新侧边栏
+      const kpiSidebarContent = document.getElementById("kpis-sidebar");
+      const kpiSidebar = document.getElementById("kpi-sidebar");
+      if (kpiSidebarContent) {
+        kpiSidebarContent.innerHTML = `
+          <div class="sidebar-header">
+            <span class="sidebar-title">📊 核心指标总览</span>
+          </div>
+          ${kpiHtml}
+        `;
+        if (kpiSidebar) kpiSidebar.style.display = "block";
       }
       // 同时更新原有的kpis区域（如果存在）
       const kpisOld = document.getElementById("kpis");
@@ -1491,12 +1496,12 @@
         if (uploadPanel) uploadPanel.classList.add("hidden");
       });
       
-      // KPI外挂栏折叠/展开
-      const kpiDockToggle = document.getElementById("kpi-dock-toggle");
-      const kpiDock = document.getElementById("kpi-dock");
-      if (kpiDockToggle && kpiDock) {
-        kpiDockToggle.addEventListener("click", () => {
-          kpiDock.classList.toggle("collapsed");
+      // KPI侧边栏折叠/展开
+      const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
+      const kpiSidebar = document.getElementById("kpi-sidebar");
+      if (sidebarToggleBtn && kpiSidebar) {
+        sidebarToggleBtn.addEventListener("click", () => {
+          kpiSidebar.classList.toggle("open");
         });
       }
       
