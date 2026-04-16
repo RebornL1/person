@@ -452,15 +452,15 @@
       transform: scale(1.05);
     }
     .theme-toggle svg {
-      width: 20px;
-      height: 20px;
-      fill: var(--text);
-      transition: fill 0.3s ease;
+      width: 22px;
+      height: 22px;
+      color: var(--text);
+      transition: color 0.3s ease;
     }
+    .theme-toggle .sun-icon { display: block; }
+    .theme-toggle .moon-icon { display: none; }
     [data-theme="light"] .theme-toggle .sun-icon { display: none; }
     [data-theme="light"] .theme-toggle .moon-icon { display: block; }
-    :root .theme-toggle .sun-icon { display: block; }
-    :root .theme-toggle .moon-icon { display: none; }
     
     @media (max-width: 1000px) {
       .weight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
