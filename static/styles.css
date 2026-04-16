@@ -1339,11 +1339,11 @@
     }
     /* 主内容区域随侧边栏展开向右移动 */
     .wrap {
-      transition: margin-left 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-      margin-left: 0;
+      transition: padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      padding-left: max(1rem, env(safe-area-inset-left));
     }
     body.sidebar-open .wrap {
-      margin-left: 240px;
+      padding-left: calc(240px + 1rem);
     }
     /* 主题切换按钮也随侧边栏移动 */
     .theme-toggle {
@@ -1645,7 +1645,7 @@
         width: 200px;
       }
       body.sidebar-open .wrap {
-        margin-left: 200px;
+        padding-left: calc(200px + 1rem);
       }
       body.sidebar-open .theme-toggle {
         margin-left: 200px;
@@ -1659,7 +1659,7 @@
         width: 160px;
       }
       body.sidebar-open .wrap {
-        margin-left: 160px;
+        padding-left: calc(160px + 1rem);
       }
       body.sidebar-open .theme-toggle {
         margin-left: 160px;
@@ -1688,7 +1688,7 @@
         width: 140px;
       }
       body.sidebar-open .wrap {
-        margin-left: 140px;
+        padding-left: calc(140px + 0.5rem);
       }
       body.sidebar-open .theme-toggle {
         margin-left: 140px;
