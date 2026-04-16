@@ -1311,3 +1311,266 @@
       background: rgba(34,197,94,0.15);
       color: var(--good);
     }
+    
+    /* ========== 新布局样式 ========== */
+    
+    /* 页面标题区域 */
+    .page-header {
+      margin-bottom: 1.5rem;
+    }
+    
+    /* 核心指标外挂栏（固定顶部） */
+    .kpi-dock {
+      position: fixed;
+      top: 70px;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(20px);
+      transition: all 0.3s ease;
+    }
+    .kpi-dock.collapsed {
+      max-height: 50px;
+      overflow: hidden;
+    }
+    .kpi-dock-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .kpi-dock.collapsed .kpi-dock-header {
+      border-bottom: none;
+    }
+    .kpi-dock-title {
+      font-size: 0.9rem;
+      color: var(--text);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .kpi-dock-toggle {
+      background: var(--btn-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.3rem 0.5rem;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+    .kpi-dock-toggle:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .kpi-dock.collapsed .kpi-dock-toggle svg {
+      transform: rotate(180deg);
+    }
+    .kpi-dock-content {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.8rem;
+      padding: 0.8rem 1.5rem;
+      max-height: 200px;
+      overflow: hidden;
+    }
+    .kpi-dock.collapsed .kpi-dock-content {
+      display: none;
+    }
+    .kpi-dock .kpi {
+      padding: 0.8rem 1rem;
+      background: var(--surface-2);
+    }
+    .kpi-dock .kpi b {
+      font-size: 1.4rem;
+    }
+    .kpi-dock .kpi span {
+      font-size: 0.72rem;
+    }
+    
+    /* 优先显示区域 */
+    .priority-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .priority-section h2 {
+      color: var(--accent);
+    }
+    
+    /* 快速操作按钮 */
+    .quick-actions {
+      display: flex;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    .quick-action-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.8rem 1.2rem;
+      background: var(--btn-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .quick-action-btn:hover {
+      background: var(--btn-hover);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    .quick-action-btn .icon {
+      font-size: 1.3rem;
+    }
+    
+    /* 上传面板 */
+    .upload-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-bottom: 1rem;
+      transition: all 0.3s ease;
+    }
+    .upload-panel.hidden {
+      display: none;
+    }
+    .upload-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.8rem;
+    }
+    .upload-panel-header h2 {
+      margin: 0;
+    }
+    .panel-close {
+      background: transparent;
+      border: none;
+      font-size: 1.2rem;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0.2rem 0.5rem;
+      transition: color 0.2s;
+    }
+    .panel-close:hover {
+      color: var(--danger);
+    }
+    
+    /* 欢迎提示（内联版） */
+    .welcome-inline {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    .welcome-hint {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem;
+      background: var(--surface-hover);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.8rem;
+    }
+    .welcome-hint span:first-child {
+      font-size: 1.2rem;
+    }
+    
+    /* 配置面板 */
+    .config-panel {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 2px solid var(--border);
+    }
+    
+    /* 详细数据区域（可折叠） */
+    .detail-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-top: 1rem;
+    }
+    .collapsible-header {
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      transition: all 0.3s;
+    }
+    .collapsible-header:hover {
+      background: var(--surface-hover);
+    }
+    .toggle-icon {
+      font-size: 0.8rem;
+      color: var(--muted);
+      transition: transform 0.3s;
+    }
+    .detail-section.collapsed .toggle-icon {
+      transform: rotate(-90deg);
+    }
+    .collapsible-content {
+      padding: 0 1rem 1rem;
+      transition: all 0.3s ease;
+    }
+    .detail-section.collapsed .collapsible-content {
+      display: none;
+    }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1rem;
+    }
+    .detail-item h3 {
+      font-size: 0.9rem;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+    
+    /* 提示文字 */
+    .hint-text {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.6rem;
+    }
+    
+    /* 响应式调整 */
+    @media (max-width: 1000px) {
+      .kpi-dock {
+        top: 60px;
+      }
+      .kpi-dock-content {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      }
+      .quick-actions {
+        justify-content: center;
+      }
+    }
+    @media (max-width: 520px) {
+      .kpi-dock {
+        top: 50px;
+      }
+      .kpi-dock-content {
+        grid-template-columns: repeat(2, 1fr);
+        padding: 0.6rem;
+      }
+      .quick-action-btn {
+        flex: 1;
+        justify-content: center;
+      }
+    }

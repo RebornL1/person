@@ -37,158 +37,30 @@
   <!-- 鼠标跟随光晕 -->
   <div class="cursor-glow" id="cursor-glow"></div>
   
+  <!-- 核心指标外挂栏（固定顶部） -->
+  <div class="kpi-dock" id="kpi-dock" style="display:none;">
+    <div class="kpi-dock-header">
+      <span class="kpi-dock-title">📊 核心指标总览</span>
+      <button type="button" class="kpi-dock-toggle" id="kpi-dock-toggle" title="折叠/展开">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 15l-6-6-6 6"/>
+        </svg>
+      </button>
+    </div>
+    <div class="kpi-dock-content" id="kpis-dock"></div>
+  </div>
+  
   <div class="wrap">
-    <h1>工作量上传分析平台</h1>
-    <p class="sub">适用于团队工作量评估。系统会按人员计算综合工作量分：昨日新增问题、管控/内核/咨询问题、问题单/需求单/wiki/分析报告均正向加分；透传求助为负向影响。</p>
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <h1>工作量分析平台</h1>
+      <p class="sub">适用于团队工作量评估。系统会按人员计算综合工作量分：昨日新增问题、管控/内核/咨询问题、问题单/需求单/wiki/分析报告均正向加分；透传求助为负向影响。</p>
+    </div>
     
-    <!-- 历史数据管理 -->
-    <section id="history-section" style="display:none">
-      <h2>历史数据管理 <span class="badge">按日期筛选</span></h2>
-      <div class="date-picker-container">
-        <div class="date-input-group">
-          <label for="start-date">开始日期</label>
-          <input type="date" id="start-date" class="date-input" />
-        </div>
-        <span class="date-separator">至</span>
-        <div class="date-input-group">
-          <label for="end-date">结束日期</label>
-          <input type="date" id="end-date" class="date-input" />
-        </div>
-        <button type="button" class="btn" id="apply-date-filter-btn">筛选</button>
-        <button type="button" class="btn" id="clear-date-filter-btn">清除筛选</button>
-        <div class="quick-date-btns">
-          <button type="button" class="quick-date-btn" data-range="7">近7天</button>
-          <button type="button" class="quick-date-btn" data-range="30">近30天</button>
-          <button type="button" class="quick-date-btn" data-range="90">近90天</button>
-        </div>
-      </div>
-      <div class="model-toolbar" style="margin-top:0.5rem;">
-        <button type="button" class="btn" id="load-latest-btn">加载最新数据</button>
-        <button type="button" class="btn" id="refresh-history-btn">刷新历史记录</button>
-        <span style="font-size:0.78rem;color:var(--muted)">每次上传会自动保存到数据库。</span>
-      </div>
-      <div id="upload-history-list" class="mode-list"></div>
-      <div id="history-status" class="status-note"></div>
-    </section>
-
-    <!-- 列映射配置 -->
-    <section id="column-mapping-section">
-      <h2>列映射配置 <span class="badge">支持自定义Excel列名</span></h2>
-      <p class="sub" style="margin-bottom:0.6rem;">当Excel列名与默认配置不同时，可创建自定义映射配置。</p>
-      <div class="mapping-config-section">
-        <div class="mapping-header">
-          <div style="display:flex;align-items:center;gap:0.5rem;">
-            <label for="mapping-select" style="font-size:0.85rem;color:var(--muted);">选择配置：</label>
-            <select id="mapping-select" class="mapping-select">
-              <option value="">默认配置</option>
-            </select>
-          </div>
-          <button type="button" class="btn" id="new-mapping-btn">新建配置</button>
-        </div>
-        <div id="mapping-edit-panel" style="display:none;margin-top:0.8rem;">
-          <div style="display:flex;gap:0.5rem;margin-bottom:0.6rem;">
-            <input id="mapping-name-input" type="text" class="custom-input" placeholder="配置名称" style="min-width:200px;" />
-            <button type="button" class="btn" id="save-mapping-btn">保存配置</button>
-            <button type="button" class="btn" id="cancel-mapping-btn">取消</button>
-          </div>
-          <div class="mapping-grid">
-            <div class="mapping-item"><label>姓名列别名</label><input id="alias-name" type="text" placeholder="姓名,名字,人员" /></div>
-            <div class="mapping-item"><label>oncall未闭环</label><input id="alias-oncall_open" type="text" placeholder="oncall接单未闭环的数量" /></div>
-            <div class="mapping-item"><label>待处理工单</label><input id="alias-pending_ticket" type="text" placeholder="名下的待处理工单数" /></div>
-            <div class="mapping-item"><label>昨日新增问题</label><input id="alias-new_issue_yesterday" type="text" placeholder="昨日新增多少个问题" /></div>
-            <div class="mapping-item"><label>管控问题</label><input id="alias-governance_issue" type="text" placeholder="多少个管控的问题" /></div>
-            <div class="mapping-item"><label>内核问题</label><input id="alias-kernel_issue" type="text" placeholder="多少个内核的问题" /></div>
-            <div class="mapping-item"><label>咨询问题</label><input id="alias-consult_issue" type="text" placeholder="多少个咨询问题" /></div>
-            <div class="mapping-item"><label>透传求助</label><input id="alias-escalation_help" type="text" placeholder="透传求助了多少个" /></div>
-            <div class="mapping-item"><label>问题单产出</label><input id="alias-issue_ticket_output" type="text" placeholder="问题单数量" /></div>
-            <div class="mapping-item"><label>需求单产出</label><input id="alias-requirement_ticket_output" type="text" placeholder="需求单数量" /></div>
-            <div class="mapping-item"><label>wiki产出</label><input id="alias-wiki_output" type="text" placeholder="wiki输出数量" /></div>
-            <div class="mapping-item"><label>分析报告</label><input id="alias-analysis_report_output" type="text" placeholder="问题分析报告数量" /></div>
-          </div>
-        </div>
-        <div id="mapping-match-status" class="mapping-status" style="display:none;"></div>
-        <div style="margin-top:0.8rem;">
-          <button type="button" class="btn" id="refresh-mappings-btn">刷新配置列表</button>
-        </div>
-        <div id="saved-mappings-list" class="mapping-list"></div>
-        <div id="mapping-message" class="status-note"></div>
-      </div>
-    </section>
-
-    <!-- 上传区域 -->
-    <label class="drop" id="drop" for="file">
-      <input type="file" id="file" accept=".xlsx,.xls" />
-      <p style="margin:0">将 Excel 拖到此处，或 <strong>点击选择文件</strong></p>
-    </label>
-    <div class="err" id="err"></div>
-    <div class="loading" id="loading">正在解析并计算工作量模型…</div>
-    <div id="db-status" class="status-note" style="display:none;"></div>
-
-    <!-- 欢迎引导界面 -->
-    <section id="welcome-section" class="welcome-section">
-      <div class="welcome-title"><span>👋</span><span>欢迎使用工作量分析平台</span></div>
-      <div class="welcome-desc">上传包含工作量数据的 Excel 文件，系统将自动计算综合评分、风险分层并生成改进建议。</div>
-      <div class="template-preview">
-        <div class="template-card">
-          <h4>📊 必填字段</h4>
-          <p>以下字段必须包含：</p>
-          <div class="template-fields-list">
-            <span class="template-field required">姓名</span>
-            <span class="template-field required">oncall未闭环</span>
-            <span class="template-field required">待处理工单</span>
-            <span class="template-field required">昨日新增问题</span>
-          </div>
-        </div>
-        <div class="template-card">
-          <h4>📈 分析指标字段</h4>
-          <p>用于计算工作量评分：</p>
-          <div class="template-fields-list">
-            <span class="template-field">管控问题</span>
-            <span class="template-field">内核问题</span>
-            <span class="template-field">咨询问题</span>
-            <span class="template-field">透传求助</span>
-          </div>
-        </div>
-        <div class="template-card">
-          <h4>🏆 产出指标字段</h4>
-          <p>正向加分项：</p>
-          <div class="template-fields-list">
-            <span class="template-field">问题单</span>
-            <span class="template-field">需求单</span>
-            <span class="template-field">wiki</span>
-            <span class="template-field">分析报告</span>
-          </div>
-        </div>
-        <div class="template-card">
-          <h4>📋 标准列名对照</h4>
-          <div class="template-example">
-            <table>
-              <tr><th>指标</th><th>标准列名</th><th>可识别别名</th></tr>
-              <tr><td>姓名</td><td>姓名</td><td>名字、人员</td></tr>
-              <tr><td>oncall</td><td>oncall接单未闭环的数量</td><td>oncall未闭环</td></tr>
-              <tr><td>内核</td><td>多少个内核的问题</td><td>内核问题</td></tr>
-              <tr><td>透传</td><td>透传求助了多少个</td><td>透传求助</td></tr>
-            </table>
-          </div>
-        </div>
-      </div>
-      <div class="quick-start-btns">
-        <button type="button" class="quick-start-btn" id="load-sample-btn"><span class="icon">📁</span><span>加载示例数据</span></button>
-        <button type="button" class="quick-start-btn" id="download-template-btn"><span class="icon">📥</span><span>下载空白模板</span></button>
-        <button type="button" class="quick-start-btn" id="load-latest-quick-btn"><span class="icon">🔄</span><span>加载历史数据</span></button>
-      </div>
-    </section>
-
-    <!-- 分析结果区域 -->
+    <!-- ========== 主要内容区域（分析结果优先显示） ========== -->
     <div id="result" style="display:none">
-      <section>
-        <h2>模型配置入口 <span class="badge">弹窗调整</span></h2>
-        <div class="model-toolbar">
-          <button type="button" class="btn" id="open-model-config">打开模型口径与权重配置</button>
-        </div>
-      </section>
-      <section><h2>核心指标总览</h2><div class="grid-4" id="kpis"></div></section>
-      <section>
+      <!-- 工作量重点看板 - 最前面 -->
+      <section class="priority-section">
         <h2>工作量重点看板</h2>
         <div class="chart-grid">
           <div class="chart-card"><h3>综合工作量评分</h3><div class="chart-wrap"><canvas id="chart-score"></canvas></div></div>
@@ -197,6 +69,8 @@
           <div class="chart-card"><h3>鼓励项产出</h3><div class="chart-wrap"><canvas id="chart-output"></canvas></div></div>
         </div>
       </section>
+      
+      <!-- 风险分层与改进建议 -->
       <section>
         <h2>风险分层与改进建议</h2>
         <div class="risk-grid">
@@ -204,28 +78,173 @@
           <div class="risk-card"><h3>改进建议</h3><ul id="risk-suggestion-list" class="risk-list"></ul></div>
         </div>
       </section>
+      
+      <!-- 模型配置入口 -->
       <section>
-        <h2>自定义模式存储</h2>
+        <h2>模型配置</h2>
+        <div class="model-toolbar">
+          <button type="button" class="btn" id="open-model-config">调整权重与口径</button>
+          <span style="font-size:0.78rem;color:var(--muted)">点击按钮可自定义计算权重</span>
+        </div>
+      </section>
+      
+      <!-- 人员工作量明细 -->
+      <section><h2>人员工作量明细</h2><div class="table-wrap"><table id="person-table"></table></div></section>
+      
+      <!-- 自定义模式存储 -->
+      <section>
+        <h2>数据存储与管理</h2>
         <div class="custom-builder">
           <div class="custom-actions">
-            <input id="custom-mode-name" class="custom-input" placeholder="模式名称" />
-            <button type="button" class="btn" id="save-custom-mode-btn">保存到 PostgreSQL</button>
-            <button type="button" class="btn" id="select-all-columns-btn">全选</button>
+            <input id="custom-mode-name" class="custom-input" placeholder="存储名称" />
+            <button type="button" class="btn" id="save-custom-mode-btn">保存到数据库</button>
+            <button type="button" class="btn" id="select-all-columns-btn">全选列</button>
             <button type="button" class="btn" id="clear-columns-btn">清空</button>
           </div>
           <div id="custom-column-picks" class="column-picks"></div>
           <div id="custom-save-status" class="status-note"></div>
           <div class="custom-actions" style="margin-top:0.7rem;">
-            <button type="button" class="btn" id="refresh-custom-modes-btn">刷新已保存模式</button>
+            <button type="button" class="btn" id="refresh-custom-modes-btn">刷新已存储数据</button>
           </div>
           <div id="custom-mode-list" class="mode-list"></div>
         </div>
       </section>
-      <section><h2>人员工作量明细</h2><div class="table-wrap"><table id="person-table"></table></div></section>
-      <section><h2>基础概览</h2><div class="grid-4" id="stats"></div></section>
-      <section><h2>列与类型</h2><div class="meta-grid" id="meta"></div></section>
-      <section id="describe-section" style="display:none"><h2>数值列描述统计</h2><div class="table-wrap"><table id="describe-table"></table></div></section>
-      <section><h2>数据预览</h2><div class="table-wrap"><table id="preview"></table></div></section>
+      
+      <!-- 详细数据区域（可折叠） -->
+      <section class="detail-section">
+        <h2 class="collapsible-header" id="detail-toggle">
+          详细数据
+          <span class="toggle-icon">▼</span>
+        </h2>
+        <div class="collapsible-content" id="detail-content">
+          <div class="detail-grid">
+            <div class="detail-item"><h3>基础概览</h3><div class="grid-4" id="stats"></div></div>
+            <div class="detail-item"><h3>列与类型</h3><div class="meta-grid" id="meta"></div></div>
+          </div>
+          <div id="describe-section" style="display:none"><h3>数值列描述统计</h3><div class="table-wrap"><table id="describe-table"></table></div></div>
+          <div><h3>数据预览</h3><div class="table-wrap"><table id="preview"></table></div></div>
+        </div>
+      </section>
+    </div>
+    
+    <!-- ========== 底部配置与上传区域 ========== -->
+    <div class="config-panel" id="config-panel">
+      <!-- 快速操作按钮 -->
+      <div class="quick-actions">
+        <button type="button" class="quick-action-btn" id="show-upload-btn">
+          <span class="icon">📤</span>
+          <span>上传数据</span>
+        </button>
+        <button type="button" class="quick-action-btn" id="show-history-btn">
+          <span class="icon">📅</span>
+          <span>历史记录</span>
+        </button>
+        <button type="button" class="quick-action-btn" id="show-config-btn">
+          <span class="icon">⚙️</span>
+          <span>配置映射</span>
+        </button>
+      </div>
+      
+      <!-- 上传区域（可折叠） -->
+      <div class="upload-panel" id="upload-panel">
+        <div class="upload-panel-header">
+          <h2>数据上传</h2>
+          <button type="button" class="panel-close" id="close-upload-btn">✕</button>
+        </div>
+        <label class="drop" id="drop" for="file">
+          <input type="file" id="file" accept=".xlsx,.xls" />
+          <p style="margin:0">将 Excel 拖到此处，或 <strong>点击选择文件</strong></p>
+        </label>
+        <div class="err" id="err"></div>
+        <div class="loading" id="loading">正在解析并计算工作量模型…</div>
+        <div id="db-status" class="status-note" style="display:none;"></div>
+        
+        <!-- 欢迎引导界面 -->
+        <div id="welcome-section" class="welcome-inline">
+          <div class="welcome-hint">
+            <span>💡</span>
+            <span>首次使用？请上传包含工作量数据的Excel文件，或点击下方按钮快速体验</span>
+          </div>
+          <div class="quick-start-btns">
+            <button type="button" class="quick-start-btn" id="load-sample-btn"><span class="icon">📁</span><span>加载示例</span></button>
+            <button type="button" class="quick-start-btn" id="download-template-btn"><span class="icon">📥</span><span>下载模板</span></button>
+            <button type="button" class="quick-start-btn" id="load-latest-quick-btn"><span class="icon">🔄</span><span>历史数据</span></button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 历史数据管理 -->
+      <section id="history-section" style="display:none">
+        <h2>历史数据管理</h2>
+        <div class="date-picker-container">
+          <div class="date-input-group">
+            <label for="start-date">开始日期</label>
+            <input type="date" id="start-date" class="date-input" />
+          </div>
+          <span class="date-separator">至</span>
+          <div class="date-input-group">
+            <label for="end-date">结束日期</label>
+            <input type="date" id="end-date" class="date-input" />
+          </div>
+          <button type="button" class="btn" id="apply-date-filter-btn">筛选</button>
+          <button type="button" class="btn" id="clear-date-filter-btn">清除</button>
+          <div class="quick-date-btns">
+            <button type="button" class="quick-date-btn" data-range="7">近7天</button>
+            <button type="button" class="quick-date-btn" data-range="30">近30天</button>
+            <button type="button" class="quick-date-btn" data-range="90">近90天</button>
+          </div>
+        </div>
+        <div class="model-toolbar" style="margin-top:0.5rem;">
+          <button type="button" class="btn" id="load-latest-btn">加载最新</button>
+          <button type="button" class="btn" id="refresh-history-btn">刷新列表</button>
+        </div>
+        <div id="upload-history-list" class="mode-list"></div>
+        <div id="history-status" class="status-note"></div>
+      </section>
+      
+      <!-- 列映射配置 -->
+      <section id="column-mapping-section" style="display:none">
+        <h2>列映射配置</h2>
+        <p class="hint-text">当Excel列名与默认配置不同时，可创建自定义映射配置</p>
+        <div class="mapping-config-section">
+          <div class="mapping-header">
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              <label for="mapping-select" style="font-size:0.85rem;color:var(--muted);">选择配置：</label>
+              <select id="mapping-select" class="mapping-select">
+                <option value="">默认配置</option>
+              </select>
+            </div>
+            <button type="button" class="btn" id="new-mapping-btn">新建</button>
+          </div>
+          <div id="mapping-edit-panel" style="display:none;margin-top:0.8rem;">
+            <div style="display:flex;gap:0.5rem;margin-bottom:0.6rem;">
+              <input id="mapping-name-input" type="text" class="custom-input" placeholder="配置名称" style="min-width:200px;" />
+              <button type="button" class="btn" id="save-mapping-btn">保存</button>
+              <button type="button" class="btn" id="cancel-mapping-btn">取消</button>
+            </div>
+            <div class="mapping-grid">
+              <div class="mapping-item"><label>姓名列别名</label><input id="alias-name" type="text" placeholder="姓名,名字,人员" /></div>
+              <div class="mapping-item"><label>oncall未闭环</label><input id="alias-oncall_open" type="text" placeholder="oncall接单未闭环的数量" /></div>
+              <div class="mapping-item"><label>待处理工单</label><input id="alias-pending_ticket" type="text" placeholder="名下的待处理工单数" /></div>
+              <div class="mapping-item"><label>昨日新增问题</label><input id="alias-new_issue_yesterday" type="text" placeholder="昨日新增多少个问题" /></div>
+              <div class="mapping-item"><label>管控问题</label><input id="alias-governance_issue" type="text" placeholder="多少个管控的问题" /></div>
+              <div class="mapping-item"><label>内核问题</label><input id="alias-kernel_issue" type="text" placeholder="多少个内核的问题" /></div>
+              <div class="mapping-item"><label>咨询问题</label><input id="alias-consult_issue" type="text" placeholder="多少个咨询问题" /></div>
+              <div class="mapping-item"><label>透传求助</label><input id="alias-escalation_help" type="text" placeholder="透传求助了多少个" /></div>
+              <div class="mapping-item"><label>问题单产出</label><input id="alias-issue_ticket_output" type="text" placeholder="问题单数量" /></div>
+              <div class="mapping-item"><label>需求单产出</label><input id="alias-requirement_ticket_output" type="text" placeholder="需求单数量" /></div>
+              <div class="mapping-item"><label>wiki产出</label><input id="alias-wiki_output" type="text" placeholder="wiki输出数量" /></div>
+              <div class="mapping-item"><label>分析报告</label><input id="alias-analysis_report_output" type="text" placeholder="问题分析报告数量" /></div>
+            </div>
+          </div>
+          <div id="mapping-match-status" class="mapping-status" style="display:none;"></div>
+          <div style="margin-top:0.8rem;">
+            <button type="button" class="btn" id="refresh-mappings-btn">刷新配置</button>
+          </div>
+          <div id="saved-mappings-list" class="mapping-list"></div>
+          <div id="mapping-message" class="status-note"></div>
+        </div>
+      </section>
     </div>
   </div>
 

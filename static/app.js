@@ -717,18 +717,24 @@
       const encourageTotal = (totals.issue_ticket_output || 0) + (totals.requirement_ticket_output || 0) + (totals.wiki_output || 0) + (totals.analysis_report_output || 0);
       const dailyByFormula = (totals.governance_issue || 0) + (totals.kernel_issue || 0) + (totals.consult_issue || 0);
       const risk = a.risk_level_counts || {};
-      document.getElementById("kpis").innerHTML = `
+      const kpiHtml = `
         <div class="kpi"><span>团队总工作量分</span><b>${fmt(totals.workload_score)}</b></div>
         <div class="kpi"><span>人均工作量分</span><b>${fmt(avgScore)}</b></div>
-        <div class="kpi"><span>每日问题总量(管控+内核+咨询)</span><b>${fmt(dailyByFormula)}</b></div>
+        <div class="kpi"><span>每日问题总量</span><b>${fmt(dailyByFormula)}</b></div>
         <div class="kpi"><span>透传求助总量</span><b class="em-warn">${fmt(totals.escalation_help)}</b></div>
-        <div class="kpi"><span>鼓励项总产出(问题单+需求单+wiki+分析报告)</span><b class="em-good">${fmt(encourageTotal)}</b></div>
-        <div class="kpi"><span>GaussDB现网关注指数</span><b>${fmt(totals.gaussdb_focus_index)}</b></div>
+        <div class="kpi"><span>鼓励项总产出</span><b class="em-good">${fmt(encourageTotal)}</b></div>
+        <div class="kpi"><span>GaussDB关注指数</span><b>${fmt(totals.gaussdb_focus_index)}</b></div>
         <div class="kpi"><span>风险分层(高/中/低)</span><b>${fmt(risk.high || 0)} / ${fmt(risk.medium || 0)} / ${fmt(risk.low || 0)}</b></div>
         <div class="kpi"><span>工作量Top1</span><b>${escapeHtml((a.top_score_names || [])[0] || "-")}</b></div>
         <div class="kpi"><span>透传最高人员</span><b class="em-warn">${escapeHtml((a.top_transparent_names || [])[0] || "-")}</b></div>
         <div class="kpi"><span>参与分析人数</span><b>${fmt(a.people.length)}</b></div>
       `;
+      // 更新外挂栏
+      const kpiDock = document.getElementById("kpis-dock");
+      if (kpiDock) {
+        kpiDock.innerHTML = kpiHtml;
+        document.getElementById("kpi-dock").style.display = "block";
+      }
     }
 
     function makeCommonOptions(stacked) {
@@ -1450,6 +1456,51 @@
       const themeToggleBtn = document.getElementById("theme-toggle");
       if (themeToggleBtn) {
         themeToggleBtn.addEventListener("click", toggleTheme);
+      }
+      
+      // 新布局交互事件
+      // 快速操作按钮
+      const showUploadBtn = document.getElementById("show-upload-btn");
+      const showHistoryBtn = document.getElementById("show-history-btn");
+      const showConfigBtn = document.getElementById("show-config-btn");
+      const uploadPanel = document.getElementById("upload-panel");
+      const closeUploadBtn = document.getElementById("close-upload-btn");
+      
+      if (showUploadBtn) showUploadBtn.addEventListener("click", () => {
+        if (uploadPanel) uploadPanel.classList.remove("hidden");
+        if (historySection) historySection.style.display = "none";
+        if (document.getElementById("column-mapping-section")) document.getElementById("column-mapping-section").style.display = "none";
+      });
+      if (showHistoryBtn) showHistoryBtn.addEventListener("click", () => {
+        if (uploadPanel) uploadPanel.classList.add("hidden");
+        if (historySection) historySection.style.display = "block";
+        if (document.getElementById("column-mapping-section")) document.getElementById("column-mapping-section").style.display = "none";
+      });
+      if (showConfigBtn) showConfigBtn.addEventListener("click", () => {
+        if (uploadPanel) uploadPanel.classList.add("hidden");
+        if (historySection) historySection.style.display = "none";
+        if (document.getElementById("column-mapping-section")) document.getElementById("column-mapping-section").style.display = "block";
+      });
+      if (closeUploadBtn) closeUploadBtn.addEventListener("click", () => {
+        if (uploadPanel) uploadPanel.classList.add("hidden");
+      });
+      
+      // KPI外挂栏折叠/展开
+      const kpiDockToggle = document.getElementById("kpi-dock-toggle");
+      const kpiDock = document.getElementById("kpi-dock");
+      if (kpiDockToggle && kpiDock) {
+        kpiDockToggle.addEventListener("click", () => {
+          kpiDock.classList.toggle("collapsed");
+        });
+      }
+      
+      // 详细数据区域折叠/展开
+      const detailToggle = document.getElementById("detail-toggle");
+      const detailSection = document.querySelector(".detail-section");
+      if (detailToggle && detailSection) {
+        detailToggle.addEventListener("click", () => {
+          detailSection.classList.toggle("collapsed");
+        });
       }
     }
 
