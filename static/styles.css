@@ -287,13 +287,13 @@
     .risk-card {
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      background: linear-gradient(160deg, rgba(34,46,66,0.76), rgba(24,34,49,0.9));
+      background: var(--surface);
       padding: 0.8rem;
     }
     .custom-builder {
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      background: linear-gradient(160deg, rgba(34,46,66,0.76), rgba(24,34,49,0.9));
+      background: var(--surface);
       padding: 0.8rem;
     }
     .custom-actions {
