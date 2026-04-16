@@ -732,6 +732,7 @@
       // 更新侧边栏
       const kpiSidebarContent = document.getElementById("kpis-sidebar");
       const kpiSidebar = document.getElementById("kpi-sidebar");
+      const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
       if (kpiSidebarContent) {
         kpiSidebarContent.innerHTML = `
           <div class="sidebar-header">
@@ -740,6 +741,7 @@
           ${kpiHtml}
         `;
         if (kpiSidebar) kpiSidebar.style.display = "block";
+        if (sidebarToggleBtn) sidebarToggleBtn.style.display = "flex";
       }
       // 同时更新原有的kpis区域（如果存在）
       const kpisOld = document.getElementById("kpis");
@@ -1501,7 +1503,15 @@
       const kpiSidebar = document.getElementById("kpi-sidebar");
       if (sidebarToggleBtn && kpiSidebar) {
         sidebarToggleBtn.addEventListener("click", () => {
-          kpiSidebar.classList.toggle("open");
+          const isOpen = kpiSidebar.classList.toggle("open");
+          // 动态调整按钮位置和箭头方向
+          if (isOpen) {
+            sidebarToggleBtn.style.left = "280px";
+            sidebarToggleBtn.querySelector(".toggle-arrow").textContent = "◀";
+          } else {
+            sidebarToggleBtn.style.left = "0";
+            sidebarToggleBtn.querySelector(".toggle-arrow").textContent = "▶";
+          }
         });
       }
       

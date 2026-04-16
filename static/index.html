@@ -37,17 +37,15 @@
   <!-- 鼠标跟随光晕 -->
   <div class="cursor-glow" id="cursor-glow"></div>
   
+  <!-- 核心指标侧边栏展开按钮（固定在左侧边缘） -->
+  <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" title="展开核心指标" style="display:none;">
+    <span class="toggle-arrow">▶</span>
+    <span class="toggle-text">指标</span>
+  </button>
+  
   <!-- 核心指标侧边栏（左侧可折叠） -->
   <div class="kpi-sidebar" id="kpi-sidebar" style="display:none;">
-    <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" title="展开核心指标">
-      <span class="toggle-arrow">▶</span>
-      <span class="toggle-text">指标</span>
-    </button>
-    <div class="sidebar-content" id="kpis-sidebar">
-      <div class="sidebar-header">
-        <span class="sidebar-title">📊 核心指标总览</span>
-      </div>
-    </div>
+    <div class="sidebar-content" id="kpis-sidebar"></div>
   </div>
   
   <div class="wrap">

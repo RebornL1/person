@@ -1360,19 +1360,9 @@
       background: var(--surface-hover);
       padding-left: 1rem;
     }
-    .kpi-sidebar.open ~ .sidebar-toggle-btn {
-      left: 280px;
-      opacity: 0.6;
-    }
-    .kpi-sidebar.open ~ .sidebar-toggle-btn:hover {
-      opacity: 1;
-    }
     .toggle-arrow {
       font-size: 0.75rem;
       transition: transform 0.3s;
-    }
-    .kpi-sidebar.open ~ .sidebar-toggle-btn .toggle-arrow {
-      transform: rotate(180deg);
     }
     .toggle-text {
       font-size: 0.78rem;
@@ -1579,16 +1569,10 @@
       .kpi-sidebar.open {
         width: 220px;
       }
-      .kpi-sidebar.open ~ .sidebar-toggle-btn {
-        left: 220px;
-      }
     }
     @media (max-width: 520px) {
       .kpi-sidebar.open {
         width: 180px;
-      }
-      .kpi-sidebar.open ~ .sidebar-toggle-btn {
-        left: 180px;
       }
       #kpis-sidebar .kpi {
         padding: 0.6rem 0.8rem;
