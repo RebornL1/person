@@ -1504,12 +1504,12 @@
       if (sidebarToggleBtn && kpiSidebar) {
         sidebarToggleBtn.addEventListener("click", () => {
           const isOpen = kpiSidebar.classList.toggle("open");
-          // 动态调整按钮位置和箭头方向
+          // 通过 body 类控制整体布局移动
           if (isOpen) {
-            sidebarToggleBtn.style.left = "280px";
+            document.body.classList.add("sidebar-open");
             sidebarToggleBtn.querySelector(".toggle-arrow").textContent = "◀";
           } else {
-            sidebarToggleBtn.style.left = "0";
+            document.body.classList.remove("sidebar-open");
             sidebarToggleBtn.querySelector(".toggle-arrow").textContent = "▶";
           }
         });
