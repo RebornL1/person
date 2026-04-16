@@ -1710,3 +1710,151 @@
         font-size: 0.78rem;
       }
     }
+    
+    /* ========== 导入配置弹窗样式 ========== */
+    .import-config-modal-content {
+      width: min(600px, 95vw);
+      max-height: min(85dvh, 700px);
+    }
+    .import-config-body {
+      padding: 0.8rem;
+      overflow-y: auto;
+    }
+    .import-config-section {
+      margin-bottom: 1rem;
+    }
+    .import-config-section h4 {
+      font-size: 0.88rem;
+      color: var(--text);
+      margin: 0 0 0.5rem;
+      font-weight: 600;
+    }
+    .sheet-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.5rem;
+      background: var(--surface);
+    }
+    .sheet-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-2);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sheet-item:hover {
+      border-color: var(--accent);
+      background: var(--surface-hover);
+    }
+    .sheet-item.selected {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .sheet-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+    .sheet-item-info {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .sheet-item-name {
+      font-size: 0.85rem;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .sheet-item-meta {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .sheet-item-badge {
+      font-size: 0.7rem;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      background: var(--btn-bg);
+      color: var(--good);
+    }
+    .column-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 0.4rem;
+      max-height: 180px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.5rem;
+      background: var(--surface);
+    }
+    .column-item {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.35rem 0.45rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-2);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.78rem;
+    }
+    .column-item:hover {
+      border-color: var(--accent);
+    }
+    .column-item.selected {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .column-item input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+    .column-item .col-type {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-left: 0.2rem;
+    }
+    .chart-type-select {
+      width: 100%;
+      padding: 0.5rem 0.8rem;
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .chart-type-select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .import-config-actions {
+      display: flex;
+      gap: 0.8rem;
+      align-items: center;
+      padding-top: 0.8rem;
+      border-top: 1px solid var(--border);
+    }
+    .primary-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      font-weight: 500;
+    }
+    .primary-btn:hover {
+      background: var(--accent-light);
+    }

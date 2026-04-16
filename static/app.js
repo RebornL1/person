@@ -102,6 +102,13 @@
     let mappingSelect, newMappingBtn, mappingEditPanel, mappingNameInput;
     let saveMappingBtn, cancelMappingBtn, savedMappingsList, mappingMessage, mappingMatchStatus, refreshMappingsBtn;
     let welcomeSection, loadSampleBtn, downloadTemplateBtn, loadLatestQuickBtn;
+    // 导入配置弹窗相关
+    let importConfigModal, closeImportConfigBtn, confirmImportBtn, importStatus;
+    let sheetListEl, columnListEl, chartTypeSelect;
+    
+    // 导入预览数据缓存
+    let pendingFile = null;
+    let pendingPreviewData = null;
     
     const charts = {};
     const WEIGHT_LABELS = {
@@ -440,43 +447,201 @@
       clearError();
       result.style.display = "none";
       loading.classList.add("show");
+      loading.textContent = "正在解析Excel文件...";
+      
       const fd = new FormData();
       fd.append("file", file);
       
-      // 获取当前选择的列映射配置ID
-      const selectedMappingId = mappingSelect ? mappingSelect.value : "";
-      let uploadUrl = "/api/upload";
-      if (selectedMappingId) {
-        uploadUrl += `?column_mapping_id=${selectedMappingId}`;
-      }
-      
       try {
-        const res = await fetch(uploadUrl, { method: "POST", body: fd });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          showError(data.detail || `请求失败 (${res.status})`);
+        // 先调用预览API获取所有sheet信息
+        const previewRes = await fetch("/api/upload/preview", { method: "POST", body: fd });
+        const previewData = await previewRes.json().catch(() => ({}));
+        if (!previewRes.ok) {
+          showError(previewData.detail || `预览失败 (${previewRes.status})`);
           return;
         }
+        
+        loading.classList.remove("show");
+        
+        // 缓存文件和预览数据供后续导入使用
+        pendingFile = file;
+        pendingPreviewData = previewData;
+        
+        // 显示导入配置弹窗
+        showImportConfigModal(previewData);
+        
+      } catch (e) {
+        const msg = e && e.message ? e.message : "未知网络异常";
+        showError(`网络错误：${msg}`);
+      } finally {
+        loading.classList.remove("show");
+        loading.textContent = "正在解析并计算工作量模型...";
+      }
+    }
+    
+    // 显示导入配置弹窗
+    function showImportConfigModal(previewData) {
+      const sheets = previewData.sheets || [];
+      
+      // 渲染sheet列表
+      sheetListEl.innerHTML = sheets.map((sheet, idx) => `
+        <div class="sheet-item ${idx === 0 ? 'selected' : ''}" data-sheet-index="${idx}">
+          <input type="checkbox" checked="${idx === 0 ? 'checked' : ''}" data-sheet-name="${escapeHtml(sheet.sheet_name)}" />
+          <div class="sheet-item-info">
+            <span class="sheet-item-name">${escapeHtml(sheet.sheet_name)}</span>
+            <span class="sheet-item-meta">${sheet.row_count}行 / ${sheet.col_count}列</span>
+          </div>
+          ${sheet.has_workload_analysis ? '<span class="sheet-item-badge">可分析</span>' : ''}
+        </div>
+      `).join("");
+      
+      // 默认显示第一个sheet的列
+      if (sheets.length > 0) {
+        renderColumnList(sheets[0].columns, sheets[0].column_types);
+      }
+      
+      // 绑定sheet点击事件
+      sheetListEl.querySelectorAll(".sheet-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+          // 阻止事件冒泡，避免双击触发
+          if (e.target.tagName === "INPUT") return;
+          const checkbox = item.querySelector("input[type='checkbox']");
+          checkbox.checked = !checkbox.checked;
+          item.classList.toggle("selected", checkbox.checked);
+          // 更新列列表显示选中sheet的列
+          const sheetIndex = parseInt(item.getAttribute("data-sheet-index"), 10);
+          if (checkbox.checked && sheets[sheetIndex]) {
+            renderColumnList(sheets[sheetIndex].columns, sheets[sheetIndex].column_types);
+          }
+        });
+      });
+      
+      importStatus.textContent = "";
+      importConfigModal.classList.add("show");
+      importConfigModal.setAttribute("aria-hidden", "false");
+    }
+    
+    // 渲染列列表
+    function renderColumnList(columns, columnTypes) {
+      columnListEl.innerHTML = columns.map(col => {
+        const type = columnTypes[col] || "text";
+        const typeLabel = type === "numeric" ? "数值" : type === "datetime" ? "日期" : "文本";
+        return `
+          <label class="column-item selected">
+            <input type="checkbox" checked data-col-name="${escapeHtml(col)}" />
+            <span>${escapeHtml(col)}</span>
+            <span class="col-type">${typeLabel}</span>
+          </label>
+        `;
+      }).join("");
+      
+      // 绑定列点击事件
+      columnListEl.querySelectorAll(".column-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+          if (e.target.tagName === "INPUT") return;
+          const checkbox = item.querySelector("input[type='checkbox']");
+          checkbox.checked = !checkbox.checked;
+          item.classList.toggle("selected", checkbox.checked);
+        });
+      });
+    }
+    
+    // 关闭导入配置弹窗
+    function closeImportConfigModal() {
+      importConfigModal.classList.remove("show");
+      importConfigModal.setAttribute("aria-hidden", "true");
+      pendingFile = null;
+      pendingPreviewData = null;
+    }
+    
+    // 确认导入
+    async function confirmImport() {
+      const sheets = pendingPreviewData?.sheets || [];
+      
+      // 获取选中的sheet
+      const selectedSheetNames = [];
+      sheetListEl.querySelectorAll("input[type='checkbox']:checked").forEach(cb => {
+        selectedSheetNames.push(cb.getAttribute("data-sheet-name"));
+      });
+      
+      if (selectedSheetNames.length === 0) {
+        importStatus.textContent = "请至少选择一个Sheet页";
+        return;
+      }
+      
+      // 获取选中的列
+      const selectedColumns = [];
+      columnListEl.querySelectorAll("input[type='checkbox']:checked").forEach(cb => {
+        selectedColumns.push(cb.getAttribute("data-col-name"));
+      });
+      
+      // 获取图表类型
+      const chartType = chartTypeSelect.value;
+      
+      importStatus.textContent = `正在导入 ${selectedSheetNames.length} 个Sheet...`;
+      
+      // 获取当前选择的列映射配置ID
+      const selectedMappingId = mappingSelect ? mappingSelect.value : "";
+      
+      // 依次处理每个sheet
+      let successCount = 0;
+      let lastData = null;
+      
+      for (const sheetName of selectedSheetNames) {
+        try {
+          importStatus.textContent = `正在处理: ${sheetName}...`;
+          
+          const fd = new FormData();
+          fd.append("file", pendingFile);
+          
+          // 构建URL参数
+          let importUrl = `/api/upload?sheet_name=${encodeURIComponent(sheetName)}&selected_columns=${encodeURIComponent(selectedColumns.join(","))}&chart_types=${chartType}`;
+          if (selectedMappingId) {
+            importUrl += `&column_mapping_id=${selectedMappingId}`;
+          }
+          
+          const res = await fetch(importUrl, { method: "POST", body: fd });
+          const data = await res.json().catch(() => ({}));
+          
+          if (!res.ok) {
+            console.error(`Sheet ${sheetName} 导入失败:`, data.detail);
+            continue;
+          }
+          
+          successCount++;
+          lastData = data;
+          
+        } catch (e) {
+          console.error(`Sheet ${sheetName} 导入异常:`, e);
+        }
+      }
+      
+      // 显示结果
+      importStatus.textContent = `导入完成: ${successCount}/${selectedSheetNames.length} 个Sheet成功`;
+      
+      // 如果有成功的数据，渲染结果
+      if (successCount > 0 && lastData) {
+        closeImportConfigModal();
         clearError();
         try {
-          render(data);
+          render(lastData);
         } catch (renderErr) {
           const msg = renderErr && renderErr.message ? renderErr.message : String(renderErr || "未知渲染异常");
-          showError(`上传成功，但页面渲染失败：${msg}`);
+          showError(`导入成功，但页面渲染失败：${msg}`);
           return;
         }
         result.style.display = "block";
-        hideWelcome();  // 隐藏欢迎界面
+        hideWelcome();
         
         // 显示数据库入库状态
         const dbStatus = document.getElementById("db-status");
         if (dbStatus) {
-          if (data.saved_to_db) {
+          if (lastData.saved_to_db) {
             dbStatus.style.display = "block";
-            dbStatus.innerHTML = `<span style="color:var(--good);">✓ 数据已入库</span> (会话ID: ${data.session_id || '-'})`;
-          } else if (data.db_error) {
+            dbStatus.innerHTML = `<span style="color:var(--good);">✓ 数据已入库</span> (${successCount}个Sheet, 会话ID: ${lastData.session_id || '-'})`;
+          } else if (lastData.db_error) {
             dbStatus.style.display = "block";
-            dbStatus.innerHTML = `<span style="color:var(--danger);">⚠ 入库失败</span>: ${data.db_error}`;
+            dbStatus.innerHTML = `<span style="color:var(--danger);">⚠ 入库失败</span>: ${lastData.db_error}`;
           } else {
             dbStatus.style.display = "block";
             dbStatus.innerHTML = `<span style="color:var(--warn);">ℹ 未入库</span> (未配置数据库)`;
@@ -484,15 +649,10 @@
         }
         
         // 更新列匹配状态显示
-        if (data.columns) {
-          latestColumns = data.columns;
+        if (lastData.columns) {
+          latestColumns = lastData.columns;
           updateMappingMatchStatus();
         }
-      } catch (e) {
-        const msg = e && e.message ? e.message : "未知网络异常";
-        showError(`网络错误：${msg}`);
-      } finally {
-        loading.classList.remove("show");
       }
     }
 
@@ -1364,6 +1524,14 @@
       loadSampleBtn = document.getElementById("load-sample-btn");
       downloadTemplateBtn = document.getElementById("download-template-btn");
       loadLatestQuickBtn = document.getElementById("load-latest-quick-btn");
+      // 导入配置弹窗相关
+      importConfigModal = document.getElementById("import-config-modal");
+      closeImportConfigBtn = document.getElementById("close-import-config");
+      confirmImportBtn = document.getElementById("confirm-import-btn");
+      importStatus = document.getElementById("import-status");
+      sheetListEl = document.getElementById("sheet-list");
+      columnListEl = document.getElementById("column-list");
+      chartTypeSelect = document.getElementById("chart-type-select");
       
       // 鼠标跟随光晕元素
       cursorGlow = document.getElementById("cursor-glow");
@@ -1394,8 +1562,18 @@
         if (e.target === modelModal) closeModelConfig();
       });
       document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") closeModelConfig();
+        if (e.key === "Escape") {
+          closeModelConfig();
+          closeImportConfigModal();
+        }
       });
+      
+      // 导入配置弹窗事件
+      if (closeImportConfigBtn) closeImportConfigBtn.addEventListener("click", closeImportConfigModal);
+      if (importConfigModal) importConfigModal.addEventListener("click", (e) => {
+        if (e.target === importConfigModal) closeImportConfigModal();
+      });
+      if (confirmImportBtn) confirmImportBtn.addEventListener("click", confirmImport);
       
       // 自定义模式按钮事件
       if (saveCustomModeBtn) saveCustomModeBtn.addEventListener("click", saveCustomModeToPg);

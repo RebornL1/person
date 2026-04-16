@@ -356,10 +356,79 @@ def _dataframe_to_payload(
     }
 
 
+@app.post("/api/upload/preview")
+async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
+    """预览Excel文件，返回所有sheet的信息。"""
+    name = (file.filename or "").lower()
+    if not name.endswith((".xlsx", ".xls")):
+        raise HTTPException(
+            status_code=400,
+            detail="请上传 .xlsx 或 .xls 文件",
+        )
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="文件为空")
+
+    try:
+        bio = io.BytesIO(raw)
+        engine = "openpyxl" if name.endswith(".xlsx") else "xlrd"
+        # 读取所有sheet
+        xls = pd.ExcelFile(bio, engine=engine)
+        sheet_names = xls.sheet_names
+        
+        sheets_info = []
+        for sheet_name in sheet_names:
+            df = pd.read_excel(xls, sheet_name=sheet_name)
+            df = df.fillna("")
+            
+            # 获取列信息
+            columns = [str(c) for c in df.columns.tolist()]
+            dtypes = {str(c): str(t) for c, t in df.dtypes.items()}
+            
+            # 判断每列是否为数值型
+            column_types = {}
+            for col in columns:
+                dtype = dtypes.get(col, "")
+                if dtype.includes("int") or dtype.includes("float") or dtype.includes("number"):
+                    column_types[col] = "numeric"
+                elif dtype.includes("datetime") or dtype.includes("date"):
+                    column_types[col] = "datetime"
+                else:
+                    column_types[col] = "text"
+            
+            # 获取前几行预览
+            preview_rows = json.loads(df.head(5).to_json(orient="records", force_ascii=False))
+            
+            sheets_info.append({
+                "sheet_name": sheet_name,
+                "row_count": int(df.shape[0]),
+                "col_count": int(df.shape[1]),
+                "columns": columns,
+                "column_types": column_types,
+                "preview_rows": preview_rows,
+                "has_workload_analysis": _build_workload_analysis(df) is not None,
+            })
+    except Exception as e:
+        raise HTTPException(
+            status_code=422,
+            detail=f"无法解析 Excel：{e!s}",
+        ) from e
+
+    return JSONResponse(content={
+        "ok": True,
+        "filename": file.filename,
+        "sheets": sheets_info,
+        "sheet_count": len(sheets_info),
+    })
+
+
 @app.post("/api/upload")
 async def upload_excel(
     file: UploadFile = File(...),
-    column_mapping_id: int | None = Query(None, description="列映射配置ID，可选")
+    column_mapping_id: int | None = Query(None, description="列映射配置ID，可选"),
+    sheet_name: str | None = Query(None, description="指定sheet名称，可选"),
+    selected_columns: str | None = Query(None, description="选择的列，逗号分隔"),
+    chart_types: str | None = Query(None, description="图表类型，逗号分隔"),
 ) -> JSONResponse:
     name = (file.filename or "").lower()
     if not name.endswith((".xlsx", ".xls")):
@@ -374,12 +443,24 @@ async def upload_excel(
     try:
         bio = io.BytesIO(raw)
         engine = "openpyxl" if name.endswith(".xlsx") else "xlrd"
-        df = pd.read_excel(bio, engine=engine)
+        # 支持指定sheet
+        if sheet_name:
+            df = pd.read_excel(bio, engine=engine, sheet_name=sheet_name)
+        else:
+            df = pd.read_excel(bio, engine=engine)
     except Exception as e:
         raise HTTPException(
             status_code=422,
             detail=f"无法解析 Excel：{e!s}",
         ) from e
+    
+    # 支持选择指定列
+    if selected_columns:
+        cols_list = [c.strip() for c in selected_columns.split(",") if c.strip()]
+        # 过滤出存在的列
+        existing_cols = [c for c in cols_list if c in df.columns]
+        if existing_cols:
+            df = df[existing_cols]
 
     # 获取列映射配置
     column_aliases = None
@@ -432,6 +513,10 @@ async def upload_excel(
     payload["all_rows_truncated"] = len(df) > MAX_SAVE_ROWS
     payload["column_mapping_id"] = column_mapping_id
     payload["column_mapping_name"] = mapping_name
+    # 添加导入配置信息
+    payload["sheet_name"] = sheet_name
+    payload["selected_columns"] = selected_columns
+    payload["chart_types"] = chart_types
 
     # 自动保存到 PostgreSQL（如果配置了 PG_DSN）
     if dsn:

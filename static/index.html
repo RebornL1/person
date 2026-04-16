@@ -259,6 +259,39 @@
     </div>
   </div>
 
+  <!-- 导入配置弹窗 -->
+  <div class="modal-mask" id="import-config-modal" aria-hidden="true">
+    <div class="modal import-config-modal-content">
+      <div class="modal-head">
+        <h3>数据导入配置</h3>
+        <button type="button" class="btn" id="close-import-config">取消</button>
+      </div>
+      <div class="import-config-body">
+        <div class="import-config-section">
+          <h4>选择Sheet页</h4>
+          <div id="sheet-list" class="sheet-list"></div>
+        </div>
+        <div class="import-config-section">
+          <h4>选择展示列</h4>
+          <div id="column-list" class="column-list"></div>
+        </div>
+        <div class="import-config-section">
+          <h4>图表类型</h4>
+          <select id="chart-type-select" class="chart-type-select">
+            <option value="bar">柱状图</option>
+            <option value="line">折线图</option>
+            <option value="pie">饼图</option>
+            <option value="table">表格</option>
+          </select>
+        </div>
+        <div class="import-config-actions">
+          <button type="button" class="btn primary-btn" id="confirm-import-btn">确认导入</button>
+          <span id="import-status" class="status-note"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="/static/app.js"></script>
 </body>
