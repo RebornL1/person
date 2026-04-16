@@ -730,10 +730,16 @@
         <div class="kpi"><span>参与分析人数</span><b>${fmt(a.people.length)}</b></div>
       `;
       // 更新外挂栏
-      const kpiDock = document.getElementById("kpis-dock");
-      if (kpiDock) {
-        kpiDock.innerHTML = kpiHtml;
-        document.getElementById("kpi-dock").style.display = "block";
+      const kpiDockContent = document.getElementById("kpis-dock");
+      const kpiDock = document.getElementById("kpi-dock");
+      if (kpiDockContent) {
+        kpiDockContent.innerHTML = kpiHtml;
+        if (kpiDock) kpiDock.style.display = "block";
+      }
+      // 同时更新原有的kpis区域（如果存在）
+      const kpisOld = document.getElementById("kpis");
+      if (kpisOld) {
+        kpisOld.innerHTML = kpiHtml;
       }
     }
 
