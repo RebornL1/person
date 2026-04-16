@@ -120,16 +120,16 @@ def _ensure_upload_tables_exist(conn) -> None:
                 sql.Identifier(COLUMN_MAPPING_TABLE)
             )
         )
-        # 插入默认列映射配置（如果不存在）
+        # 插入默认列映射配置（如果不存在）- 使用兼容方式避免 ON CONFLICT
         cur.execute(
             sql.SQL("""
             INSERT INTO {} (mapping_name, name_aliases, oncall_open_aliases, pending_ticket_aliases,
                 new_issue_yesterday_aliases, governance_issue_aliases, kernel_issue_aliases, consult_issue_aliases,
                 escalation_help_aliases, issue_ticket_output_aliases, requirement_ticket_output_aliases,
                 wiki_output_aliases, analysis_report_output_aliases, is_default)
-            VALUES ('默认配置', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
-            ON CONFLICT (mapping_name) DO NOTHING
-            """).format(sql.Identifier(COLUMN_MAPPING_TABLE)),
+            SELECT '默认配置', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE
+            WHERE NOT EXISTS (SELECT 1 FROM {} WHERE mapping_name = '默认配置')
+            """).format(sql.Identifier(COLUMN_MAPPING_TABLE), sql.Identifier(COLUMN_MAPPING_TABLE)),
             (
                 json.dumps(DEFAULT_COLUMN_ALIASES["name"]),
                 json.dumps(DEFAULT_COLUMN_ALIASES["oncall_open"]),
