@@ -1,8 +1,39 @@
+    // ========== 主题颜色获取辅助函数 ==========
+    function getThemeColors() {
+      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+      return {
+        accent: isDark ? '#3d8bfd' : '#3d8bfd',
+        good: isDark ? '#22c55e' : '#16a34a',
+        warn: isDark ? '#f59e0b' : '#d97706',
+        danger: isDark ? '#f87171' : '#dc2626',
+        text: isDark ? '#e8eef4' : '#1a202c',
+        muted: isDark ? '#8b9cb3' : '#64748b',
+        accentLight: isDark ? '#9bc0ff' : '#3d8bfd',
+        textLight: isDark ? '#d3deef' : '#334155',
+        surface: isDark ? '#1a2332' : '#ffffff',
+        surfaceHover: isDark ? 'rgba(61, 139, 253, 0.1)' : 'rgba(61, 139, 253, 0.08)',
+        border: isDark ? '#2d3a4d' : '#e2e8f0',
+        gridColor: isDark ? 'rgba(139,156,179,0.12)' : 'rgba(100,116,139,0.08)',
+        // 图表专用颜色
+        chartColors: {
+          primary: '#3d8bfd',
+          green: isDark ? '#22c55e' : '#16a34a',
+          purple: '#a78bfa',
+          teal: '#14b8a6',
+          pink: '#fb7185',
+          orange: '#f97316',
+          sky: '#38bdf8',
+          amber: isDark ? '#f59e0b' : '#d97706',
+        }
+      };
+    }
+    
     // ========== 优雅粒子系统（减少数量，提升质感） ==========
     function createParticles() {
       const container = document.getElementById("particles");
       if (!container) return;
-      const colors = ["#3d8bfd", "#22c55e", "#a78bfa", "#f59e0b"];
+      const themeColors = getThemeColors();
+      const colors = [themeColors.accent, themeColors.good, themeColors.purple, themeColors.warn];
       
       // 优雅发光粒子 - 只创建15个
       for (let i = 0; i < 15; i++) {
@@ -162,11 +193,11 @@
           <div class="mapping-list-item ${isDefault ? 'default' : ''}">
             <div>
               <b>${escapeHtml(m.mapping_name)}</b>
-              ${isDefault ? '<span style="color:#22c55e;font-size:0.72rem;margin-left:0.3rem;">默认</span>' : ''}
+              ${isDefault ? '<span style="color:var(--good);font-size:0.72rem;margin-left:0.3rem;">默认</span>' : ''}
             </div>
             <div style="display:flex;gap:0.4rem;">
               <button type="button" class="btn" style="font-size:0.72rem;padding:0.25rem 0.4rem;" data-edit-mapping="${m.id}">编辑</button>
-              ${!isDefault ? `<button type="button" class="btn" style="font-size:0.72rem;padding:0.25rem 0.4rem;background:rgba(248,113,113,0.15);" data-delete-mapping="${m.id}">删除</button>` : ''}
+              ${!isDefault ? `<button type="button" class="btn" style="font-size:0.72rem;padding:0.25rem 0.4rem;background:var(--err-bg);border-color:var(--danger);" data-delete-mapping="${m.id}">删除</button>` : ''}
             </div>
           </div>
         `;
@@ -310,14 +341,14 @@
 
       const matchedCount = matchResults.filter(r => r.matched).length;
       const html = `
-        <div style="font-size:0.82rem;color:#9bc0ff;margin-bottom:0.4rem;">
+        <div style="font-size:0.82rem;color:var(--accent);margin-bottom:0.4rem;">
           列匹配状态：${matchedCount}/${matchResults.length} 列已匹配
-          ${matchedCount < 5 ? '<span style="color:#f87171;margin-left:0.3rem;">（建议配置更多列别名）</span>' : '<span style="color:#22c55e;margin-left:0.3rem;">匹配良好</span>'}
+          ${matchedCount < 5 ? '<span style="color:var(--danger);margin-left:0.3rem;">（建议配置更多列别名）</span>' : '<span style="color:var(--good);margin-left:0.3rem;">匹配良好</span>'}
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.3rem;">
           ${matchResults.map(r => `
-            <div style="font-size:0.78rem;padding:0.25rem 0.4rem;border-radius:6px;background:${r.matched ? 'rgba(34,197,94,0.1)' : 'rgba(248,113,113,0.1)'};">
-              <span style="color:${r.matched ? '#22c55e' : '#f87171'};">${r.matched ? '✓' : '✗'}</span>
+            <div style="font-size:0.78rem;padding:0.25rem 0.4rem;border-radius:6px;background:${r.matched ? 'var(--surface-hover)' : 'var(--err-bg)'};">
+              <span style="color:${r.matched ? 'var(--good)' : 'var(--danger)'};">${r.matched ? '✓' : '✗'}</span>
               ${escapeHtml(r.label)}: ${r.matched ? `<span class="matched-col">${escapeHtml(r.matchedCol)}</span>` : '<span class="unmatched-col">未匹配</span>'}
             </div>
           `).join("")}
@@ -442,13 +473,13 @@
         if (dbStatus) {
           if (data.saved_to_db) {
             dbStatus.style.display = "block";
-            dbStatus.innerHTML = `<span style="color:#22c55e;">✓ 数据已入库</span> (会话ID: ${data.session_id || '-'})`;
+            dbStatus.innerHTML = `<span style="color:var(--good);">✓ 数据已入库</span> (会话ID: ${data.session_id || '-'})`;
           } else if (data.db_error) {
             dbStatus.style.display = "block";
-            dbStatus.innerHTML = `<span style="color:#f87171;">⚠ 入库失败</span>: ${data.db_error}`;
+            dbStatus.innerHTML = `<span style="color:var(--danger);">⚠ 入库失败</span>: ${data.db_error}`;
           } else {
             dbStatus.style.display = "block";
-            dbStatus.innerHTML = `<span style="color:#f59e0b;">ℹ 未入库</span> (未配置数据库)`;
+            dbStatus.innerHTML = `<span style="color:var(--warn);">ℹ 未入库</span> (未配置数据库)`;
           }
         }
         
@@ -701,24 +732,25 @@
     }
 
     function makeCommonOptions(stacked) {
+      const themeColors = getThemeColors();
       return {
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
         plugins: {
-          legend: { labels: { color: "#e8eef4", boxWidth: 12 } },
+          legend: { labels: { color: themeColors.text, boxWidth: 12 } },
         },
         scales: {
           x: {
             stacked: stacked,
-            ticks: { color: "#8b9cb3", maxRotation: 45, minRotation: 0 },
-            grid: { color: "rgba(139,156,179,0.12)" },
+            ticks: { color: themeColors.muted, maxRotation: 45, minRotation: 0 },
+            grid: { color: themeColors.gridColor },
           },
           y: {
             beginAtZero: true,
             stacked: stacked,
-            ticks: { color: "#8b9cb3" },
-            grid: { color: "rgba(139,156,179,0.12)" },
+            ticks: { color: themeColors.muted },
+            grid: { color: themeColors.gridColor },
           },
         },
       };
@@ -730,6 +762,7 @@
       if (typeof Chart === "undefined") {
         return;
       }
+      const themeColors = getThemeColors();
       const people = a.people || [];
       const labels = people.map((p) => p.name);
       const issueSorted = [...people].sort((x, y) => y.escalation_help - x.escalation_help);
@@ -738,7 +771,7 @@
         type: "bar",
         data: {
           labels,
-          datasets: [{ label: "综合工作量分", data: people.map((p) => p.workload_score), backgroundColor: "#3d8bfd" }],
+          datasets: [{ label: "综合工作量分", data: people.map((p) => p.workload_score), backgroundColor: themeColors.chartColors.primary }],
         },
         options: makeCommonOptions(false),
       });
@@ -747,7 +780,7 @@
         type: "bar",
         data: {
           labels: issueSorted.map((p) => p.name),
-          datasets: [{ label: "透传求助", data: issueSorted.map((p) => p.escalation_help), backgroundColor: "#f59e0b" }],
+          datasets: [{ label: "透传求助", data: issueSorted.map((p) => p.escalation_help), backgroundColor: themeColors.chartColors.amber }],
         },
         options: makeCommonOptions(false),
       });
@@ -757,9 +790,9 @@
         data: {
           labels,
           datasets: [
-            { label: "管控", data: people.map((p) => p.governance_issue), backgroundColor: "#22c55e" },
-            { label: "内核", data: people.map((p) => p.kernel_issue), backgroundColor: "#a78bfa" },
-            { label: "咨询", data: people.map((p) => p.consult_issue), backgroundColor: "#14b8a6" },
+            { label: "管控", data: people.map((p) => p.governance_issue), backgroundColor: themeColors.chartColors.green },
+            { label: "内核", data: people.map((p) => p.kernel_issue), backgroundColor: themeColors.chartColors.purple },
+            { label: "咨询", data: people.map((p) => p.consult_issue), backgroundColor: themeColors.chartColors.teal },
           ],
         },
         options: makeCommonOptions(true),
@@ -770,10 +803,10 @@
         data: {
           labels,
           datasets: [
-            { label: "问题单", data: people.map((p) => p.issue_ticket_output), backgroundColor: "#fb7185" },
-            { label: "需求单", data: people.map((p) => p.requirement_ticket_output), backgroundColor: "#f97316" },
-            { label: "wiki", data: people.map((p) => p.wiki_output), backgroundColor: "#38bdf8" },
-            { label: "分析报告", data: people.map((p) => p.analysis_report_output), backgroundColor: "#22c55e" },
+            { label: "问题单", data: people.map((p) => p.issue_ticket_output), backgroundColor: themeColors.chartColors.pink },
+            { label: "需求单", data: people.map((p) => p.requirement_ticket_output), backgroundColor: themeColors.chartColors.orange },
+            { label: "wiki", data: people.map((p) => p.wiki_output), backgroundColor: themeColors.chartColors.sky },
+            { label: "分析报告", data: people.map((p) => p.analysis_report_output), backgroundColor: themeColors.chartColors.green },
           ],
         },
         options: makeCommonOptions(true),
@@ -845,9 +878,9 @@
           const isNumeric = dtype.includes("int") || dtype.includes("float") || dtype.includes("number");
           const typeIcon = isNumeric ? "📊" : "📝";
           const typeLabel = isNumeric ? "数值型" : "文本型";
-          const typeColor = isNumeric ? "#9bc0ff" : "#f59e0b";
+          const typeColor = isNumeric ? "var(--accent)" : "var(--warn)";
           const missing = data.missing_counts[c] ?? 0;
-          const missingBadge = missing > 0 ? `<span style="background:rgba(248,113,113,0.18);color:#f87171;padding:0.08rem 0.32rem;border-radius:4px;font-size:0.72rem;margin-left:0.3rem">缺失 ${missing}</span>` : `<span style="background:rgba(34,197,94,0.18);color:#22c55e;padding:0.08rem 0.32rem;border-radius:4px;font-size:0.72rem;margin-left:0.3rem">完整</span>`;
+          const missingBadge = missing > 0 ? `<span style="background:var(--err-bg);color:var(--danger);padding:0.08rem 0.32rem;border-radius:4px;font-size:0.72rem;margin-left:0.3rem">缺失 ${missing}</span>` : `<span style="background:var(--surface-hover);color:var(--good);padding:0.08rem 0.32rem;border-radius:4px;font-size:0.72rem;margin-left:0.3rem">完整</span>`;
           return `<div class="meta-item" style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap">
             <span style="font-size:1rem">${typeIcon}</span>
             <code style="color:${typeColor};font-weight:500">${escapeHtml(c)}</code>
@@ -1012,32 +1045,32 @@
               const filename = escapeHtml(s.filename || "未知文件");
               const rowCol = `${fmt(s.row_count)}行/${fmt(s.col_count)}列`;
               const workloadBadge = s.has_workload_analysis 
-                ? '<span style="background:rgba(34,197,94,0.2);color:#22c55e;font-size:0.7rem;padding:0.15rem 0.35rem;border-radius:4px;margin-left:0.3rem;">有分析</span>'
-                : '<span style="background:rgba(248,113,113,0.2);color:#f87171;font-size:0.7rem;padding:0.15rem 0.35rem;border-radius:4px;margin-left:0.3rem;">无分析</span>';
+                ? '<span style="background:var(--surface-hover);color:var(--good);font-size:0.7rem;padding:0.15rem 0.35rem;border-radius:4px;margin-left:0.3rem;">有分析</span>'
+                : '<span style="background:var(--err-bg);color:var(--danger);font-size:0.7rem;padding:0.15rem 0.35rem;border-radius:4px;margin-left:0.3rem;">无分析</span>';
               return `
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;background:linear-gradient(135deg, rgba(61,139,253,0.05) 0%, rgba(10,14,20,0.3) 100%);border-radius:8px;margin-top:0.25rem;border:1px solid rgba(61,139,253,0.1);">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;background:var(--surface);border-radius:8px;margin-top:0.25rem;border:1px solid var(--border);">
                   <div style="display:flex;align-items:center;gap:0.4rem;">
-                    <span style="font-size:0.75rem;color:#d3deef;">${escapeHtml(time)}</span>
-                    <span style="font-size:0.73rem;color:#9bc0ff;font-weight:500;">${filename}</span>
+                    <span style="font-size:0.75rem;color:var(--muted);">${escapeHtml(time)}</span>
+                    <span style="font-size:0.73rem;color:var(--accent);font-weight:500;">${filename}</span>
                     ${workloadBadge}
                   </div>
                   <div style="display:flex;align-items:center;gap:0.6rem;">
                     <span style="font-size:0.72rem;color:var(--muted);">${rowCol}</span>
                     <button type="button" class="btn" style="font-size:0.72rem;padding:0.3rem 0.5rem;" data-load-session="${s.session_id}">加载</button>
-                    <button type="button" class="btn" style="font-size:0.72rem;padding:0.3rem 0.5rem;background:rgba(248,113,113,0.15);border-color:rgba(248,113,113,0.3);" data-delete-session="${s.session_id}">删除</button>
+                    <button type="button" class="btn" style="font-size:0.72rem;padding:0.3rem 0.5rem;background:var(--err-bg);border-color:var(--danger);" data-delete-session="${s.session_id}">删除</button>
                   </div>
                 </div>
               `;
             })
             .join("");
           return `
-            <div class="mode-item" style="flex-direction:column;align-items:flex-start;padding:0.6rem 0.7rem;background:linear-gradient(135deg, rgba(26,35,50,0.6) 0%, rgba(10,14,20,0.7) 100%);border-radius:10px;border:1px solid rgba(61,139,253,0.15);">
+            <div class="mode-item" style="flex-direction:column;align-items:flex-start;padding:0.6rem 0.7rem;background:var(--surface);border-radius:10px;border:1px solid var(--border);">
               <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
                 <div style="display:flex;align-items:center;gap:0.5rem;">
                   <span style="font-size:1.1rem;color:var(--accent);">📅</span>
-                  <b style="font-size:0.9rem;color:#9bc0ff;">${escapeHtml(date)}</b>
+                  <b style="font-size:0.9rem;color:var(--accent);">${escapeHtml(date)}</b>
                 </div>
-                <span style="font-size:0.72rem;color:var(--muted);background:rgba(61,139,253,0.1);padding:0.2rem 0.45rem;border-radius:5px;">${sessions.length} 条记录</span>
+                <span style="font-size:0.72rem;color:var(--muted);background:var(--btn-bg);padding:0.2rem 0.45rem;border-radius:5px;">${sessions.length} 条记录</span>
               </div>
               <div style="width:100%;margin-top:0.4rem;">${sessionsHtml}</div>
             </div>
