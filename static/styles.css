@@ -118,7 +118,7 @@
     }
     .wrap {
       width: 100%;
-      max-width: 1250px;
+      max-width: min(95vw, 1600px);
       margin: 0 auto;
       padding: max(1rem, env(safe-area-inset-top))
         max(1rem, env(safe-area-inset-right))
@@ -129,14 +129,14 @@
       z-index: 1;
     }
     h1 {
-      font-size: clamp(1.2rem, 4.4vw, 1.9rem);
+      font-size: clamp(1.2rem, 4.4vw, 2.2rem);
       margin: 0 0 0.5rem;
       letter-spacing: -0.02em;
     }
     .sub {
       color: var(--muted);
       margin: 0 0 1.2rem;
-      font-size: clamp(0.85rem, 2.6vw, 0.96rem);
+      font-size: clamp(0.85rem, 2.6vw, 1.1rem);
     }
     .drop {
       display: block;
@@ -495,6 +495,29 @@
     [data-theme="light"] .theme-toggle .sun-icon { display: none; }
     [data-theme="light"] .theme-toggle .moon-icon { display: block; }
     
+    /* ========== 高分辨率显示器适配 ========== */
+    @media (min-width: 1400px) {
+      .wrap { max-width: min(90vw, 1800px); }
+      .grid-4 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .weight-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .chart-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .risk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .kpi { padding: 1.1rem; }
+      .chart-card { padding: 1rem; }
+      .column-picks { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+      h1 { font-size: 2.5rem; }
+      .sub { font-size: 1.1rem; }
+    }
+    @media (min-width: 1800px) {
+      .wrap { max-width: min(85vw, 2200px); }
+      .grid-4 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+      .weight-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+      .chart-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .kpi b { font-size: 1.6rem; }
+      .kpi span { font-size: 0.85rem; }
+    }
+    
+    /* ========== 小屏幕适配 ========== */
     @media (max-width: 1000px) {
       .weight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
