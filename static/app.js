@@ -733,6 +733,7 @@
       const kpiSidebarContent = document.getElementById("kpis-sidebar");
       const kpiSidebar = document.getElementById("kpi-sidebar");
       const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
+      const sidebarCloseBtn = document.getElementById("sidebar-close-btn");
       if (kpiSidebarContent) {
         kpiSidebarContent.innerHTML = `
           <div class="sidebar-header">
@@ -742,6 +743,10 @@
         `;
         if (kpiSidebar) kpiSidebar.style.display = "block";
         if (sidebarToggleBtn) sidebarToggleBtn.style.display = "flex";
+        // 默认打开侧边栏
+        kpiSidebar.classList.add("open");
+        document.body.classList.add("sidebar-open");
+        sidebarToggleBtn.querySelector(".toggle-arrow").textContent = "◀";
       }
       // 同时更新原有的kpis区域（如果存在）
       const kpisOld = document.getElementById("kpis");
@@ -1500,19 +1505,33 @@
       
       // KPI侧边栏折叠/展开
       const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
+      const sidebarCloseBtn = document.getElementById("sidebar-close-btn");
       const kpiSidebar = document.getElementById("kpi-sidebar");
+      
+      function closeSidebar() {
+        kpiSidebar.classList.remove("open");
+        document.body.classList.remove("sidebar-open");
+        sidebarToggleBtn.querySelector(".toggle-arrow").textContent = "▶";
+      }
+      
+      function openSidebar() {
+        kpiSidebar.classList.add("open");
+        document.body.classList.add("sidebar-open");
+        sidebarToggleBtn.querySelector(".toggle-arrow").textContent = "◀";
+      }
+      
       if (sidebarToggleBtn && kpiSidebar) {
         sidebarToggleBtn.addEventListener("click", () => {
-          const isOpen = kpiSidebar.classList.toggle("open");
-          // 通过 body 类控制整体布局移动
-          if (isOpen) {
-            document.body.classList.add("sidebar-open");
-            sidebarToggleBtn.querySelector(".toggle-arrow").textContent = "◀";
+          if (kpiSidebar.classList.contains("open")) {
+            closeSidebar();
           } else {
-            document.body.classList.remove("sidebar-open");
-            sidebarToggleBtn.querySelector(".toggle-arrow").textContent = "▶";
+            openSidebar();
           }
         });
+      }
+      
+      if (sidebarCloseBtn && kpiSidebar) {
+        sidebarCloseBtn.addEventListener("click", closeSidebar);
       }
       
       // 详细数据区域折叠/展开

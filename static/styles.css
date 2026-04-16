@@ -1335,7 +1335,7 @@
       box-shadow: 2px 0 12px rgba(0,0,0,0.15);
     }
     .kpi-sidebar.open {
-      width: 200px;
+      width: 240px;
     }
     /* 主内容区域随侧边栏展开向右移动 */
     .wrap {
@@ -1343,14 +1343,33 @@
       margin-left: 0;
     }
     body.sidebar-open .wrap {
-      margin-left: 200px;
+      margin-left: 240px;
     }
     /* 主题切换按钮也随侧边栏移动 */
     .theme-toggle {
       transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
     body.sidebar-open .theme-toggle {
-      margin-left: 200px;
+      margin-left: 240px;
+    }
+    /* 侧边栏关闭按钮 */
+    .sidebar-close-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 2;
+      background: transparent;
+      border: none;
+      padding: 0.3rem;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 1rem;
+      transition: all 0.2s;
+      opacity: 0.6;
+    }
+    .sidebar-close-btn:hover {
+      color: var(--danger);
+      opacity: 1;
     }
     /* 侧边栏展开按钮（固定在左侧边缘，透明化） */
     .sidebar-toggle-btn {
@@ -1374,7 +1393,7 @@
       opacity: 1;
     }
     body.sidebar-open .sidebar-toggle-btn {
-      left: 200px;
+      left: 240px;
       opacity: 0.5;
     }
     body.sidebar-open .sidebar-toggle-btn:hover {
@@ -1401,6 +1420,7 @@
     }
     .sidebar-header {
       padding: 0.5rem 0.3rem;
+      padding-right: 2rem; /* 为关闭按钮留空间 */
       border-bottom: 1px solid var(--border);
       margin-bottom: 0.5rem;
       position: sticky;
@@ -1622,16 +1642,16 @@
     /* 响应式调整 */
     @media (max-width: 1000px) {
       .kpi-sidebar.open {
-        width: 180px;
+        width: 200px;
       }
       body.sidebar-open .wrap {
-        margin-left: 180px;
+        margin-left: 200px;
       }
       body.sidebar-open .theme-toggle {
-        margin-left: 180px;
+        margin-left: 200px;
       }
       body.sidebar-open .sidebar-toggle-btn {
-        left: 180px;
+        left: 200px;
       }
     }
     @media (max-width: 768px) {
