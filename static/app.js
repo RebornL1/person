@@ -1412,10 +1412,32 @@
       if (cursorGlow) {
         updateCursorGlow();
       }
+      
+      // 主题切换按钮事件
+      const themeToggleBtn = document.getElementById("theme-toggle");
+      if (themeToggleBtn) {
+        themeToggleBtn.addEventListener("click", toggleTheme);
+      }
+    }
+
+    // ========== 主题切换功能 ==========
+    function initTheme() {
+      const savedTheme = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", savedTheme);
+    }
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
+      const newTheme = currentTheme === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", newTheme);
+      localStorage.setItem("theme", newTheme);
     }
 
     // 页面加载完成后初始化
     window.addEventListener("DOMContentLoaded", () => {
+      // 初始化主题（先加载，避免闪烁）
+      initTheme();
+      
       // 初始化粒子效果
       createParticles();
       
