@@ -69,18 +69,16 @@ def _ensure_upload_tables_exist(conn) -> None:
             """).format(sql.Identifier(UPLOAD_SESSIONS_TABLE))
         )
         # 上传数据表：存储每次上传的具体数据行
+        # 注意：移除 REFERENCES 约束，改用简单 BIGINT，兼容更多数据库环境
         cur.execute(
             sql.SQL("""
             CREATE TABLE IF NOT EXISTS {} (
                 id BIGSERIAL PRIMARY KEY,
-                session_id BIGINT NOT NULL REFERENCES {}(id) ON DELETE CASCADE,
+                session_id BIGINT NOT NULL,
                 row_index BIGINT NOT NULL,
                 row_data JSONB NOT NULL
             )
-            """).format(
-                sql.Identifier(UPLOAD_DATA_TABLE),
-                sql.Identifier(UPLOAD_SESSIONS_TABLE)
-            )
+            """).format(sql.Identifier(UPLOAD_DATA_TABLE))
         )
         # 列映射配置表：存储自定义列名映射
         cur.execute(
@@ -690,7 +688,9 @@ async def save_custom_mode(req: SaveCustomModeRequest) -> JSONResponse:
     if missing:
         raise HTTPException(status_code=400, detail=f"列不存在: {missing}")
 
-    table_name = f"custom_mode_{slugify_mode_name(req.mode_name)}"
+    # 表名添加时间戳后缀，格式：custom_mode_{slugified_name}_{YYYYMMDD_HHMMSS}
+    timestamp_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
+    table_name = f"custom_mode_{slugify_mode_name(req.mode_name)}_{timestamp_suffix}"
     column_types = {
         col: infer_sql_type([row.get(col) for row in req.rows])
         for col in selected_columns
