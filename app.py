@@ -389,9 +389,9 @@ async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
             column_types = {}
             for col in columns:
                 dtype = dtypes.get(col, "")
-                if dtype.includes("int") or dtype.includes("float") or dtype.includes("number"):
+                if "int" in dtype or "float" in dtype or "number" in dtype:
                     column_types[col] = "numeric"
-                elif dtype.includes("datetime") or dtype.includes("date"):
+                elif "datetime" in dtype or "date" in dtype:
                     column_types[col] = "datetime"
                 else:
                     column_types[col] = "text"
