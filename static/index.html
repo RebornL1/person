@@ -58,6 +58,12 @@
     
     <!-- ========== 主要内容区域（分析结果优先显示） ========== -->
     <div id="result" style="display:none">
+      <!-- 自定义图表展示区域（根据导入配置动态生成） -->
+      <section id="custom-charts-section" style="display:none;">
+        <h2>自定义图表展示</h2>
+        <div id="custom-charts-grid" class="chart-grid"></div>
+      </section>
+      
       <!-- 工作量重点看板 - 最前面 -->
       <section class="priority-section">
         <h2>工作量重点看板</h2>
@@ -288,6 +294,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-  <script src="/static/app.js?v=20260417"></script>
+  <script src="/static/app.js?v=20260417b"></script>
 </body>
 </html>

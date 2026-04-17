@@ -428,7 +428,9 @@ async def upload_excel(
     column_mapping_id: int | None = Query(None, description="列映射配置ID，可选"),
     sheet_name: str | None = Query(None, description="指定sheet名称，可选"),
     selected_columns: str | None = Query(None, description="选择的列，逗号分隔"),
-    chart_types: str | None = Query(None, description="图表类型，逗号分隔"),
+    display_names: str | None = Query(None, description="显示名称映射，格式 col:displayName"),
+    column_types: str | None = Query(None, description="列数据类型，格式 col:type"),
+    chart_types: str | None = Query(None, description="图表类型，格式 col:chartType"),
 ) -> JSONResponse:
     name = (file.filename or "").lower()
     if not name.endswith((".xlsx", ".xls")):
@@ -516,7 +518,27 @@ async def upload_excel(
     # 添加导入配置信息
     payload["sheet_name"] = sheet_name
     payload["selected_columns"] = selected_columns
+    payload["display_names"] = display_names
+    payload["column_types"] = column_types
     payload["chart_types"] = chart_types
+    
+    # 解析图表类型配置为字典格式，方便前端使用
+    chart_type_config = {}
+    if chart_types:
+        for item in chart_types.split(","):
+            if ":" in item:
+                col, chart_type = item.split(":", 1)
+                chart_type_config[col.strip()] = chart_type.strip()
+    payload["chart_type_config"] = chart_type_config
+    
+    # 解析显示名称配置为字典格式
+    display_name_config = {}
+    if display_names:
+        for item in display_names.split(","):
+            if ":" in item:
+                col, display_name = item.split(":", 1)
+                display_name_config[col.strip()] = display_name.strip()
+    payload["display_name_config"] = display_name_config
 
     # 自动保存到 PostgreSQL（如果配置了 PG_DSN）
     if dsn:

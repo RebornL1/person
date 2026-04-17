@@ -1876,9 +1876,33 @@
       padding: 0.5rem;
       background: var(--surface);
     }
+    /* 表头样式 */
+    .column-config-header {
+      display: grid;
+      grid-template-columns: 50px 120px 120px 80px 80px;
+      gap: 0.6rem;
+      padding: 0.5rem 0.7rem;
+      background: var(--surface-2);
+      border-radius: 8px 8px 0 0;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 600;
+      border-bottom: 2px solid var(--border);
+    }
+    .header-col {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .header-checkbox { justify-content: center; }
+    .header-original { justify-content: flex-start; }
+    .header-display { justify-content: flex-start; }
+    .header-type { justify-content: center; }
+    .header-chart { justify-content: center; }
+    
     .column-config-item {
       display: grid;
-      grid-template-columns: auto 1fr 100px 100px;
+      grid-template-columns: 50px 120px 120px 80px 80px;
       gap: 0.6rem;
       align-items: center;
       padding: 0.5rem 0.7rem;
@@ -1900,10 +1924,32 @@
       cursor: pointer;
       accent-color: var(--accent);
     }
-    .column-config-name {
-      font-size: 0.85rem;
-      color: var(--text);
+    .column-config-original {
+      font-size: 0.82rem;
+      color: var(--muted);
       font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    /* 显示名称输入框 */
+    .column-config-display-input {
+      padding: 0.35rem 0.5rem;
+      border: 1px solid var(--input-border);
+      background: var(--input-bg);
+      color: var(--text);
+      border-radius: 6px;
+      font-size: 0.82rem;
+      width: 100%;
+      transition: border-color 0.2s;
+    }
+    .column-config-display-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .column-config-display-input::placeholder {
+      color: var(--muted);
+      font-size: 0.75rem;
     }
     .column-config-select {
       padding: 0.35rem 0.5rem;
@@ -1913,6 +1959,7 @@
       border-radius: 6px;
       font-size: 0.78rem;
       cursor: pointer;
+      width: 100%;
     }
     .column-config-select:focus {
       outline: none;

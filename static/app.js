@@ -558,7 +558,7 @@
       }
     }
     
-    // 渲染字段配置列表（每行包含勾选框、列名、类型选择、图表形态选择）
+    // 渲染字段配置列表（每行包含勾选框、原始列名、显示名称编辑、类型选择、图表形态选择）
     function renderColumnConfigList(columns, columnTypes) {
       const columnConfigListEl = document.getElementById("column-config-list");
       
@@ -577,7 +577,18 @@
       // 确保columnTypes是有效对象
       const safeColumnTypes = columnTypes || {};
       
-      columnConfigListEl.innerHTML = columns.map(col => {
+      // 渲染表头
+      const headerHtml = `
+        <div class="column-config-header">
+          <span class="header-col header-checkbox">选择</span>
+          <span class="header-col header-original">原始列名</span>
+          <span class="header-col header-display">显示名称</span>
+          <span class="header-col header-type">数据类型</span>
+          <span class="header-col header-chart">图表形态</span>
+        </div>
+      `;
+      
+      columnConfigListEl.innerHTML = headerHtml + columns.map(col => {
         const detectedType = safeColumnTypes[col] || "text";
         const typeSelectOptions = `
           <option value="numeric" ${detectedType === "numeric" ? "selected" : ""}>数值</option>
@@ -589,20 +600,23 @@
           <option value="line">折线图</option>
           <option value="pie">饼图</option>
           <option value="table">表格</option>
+          <option value="none">不展示</option>
         `;
         
         return `
           <div class="column-config-item selected" data-col-name="${escapeHtml(col)}">
             <input type="checkbox" checked data-col-checkbox="${escapeHtml(col)}" />
-            <span class="column-config-name">${escapeHtml(col)}</span>
-            <div class="column-config-field">
-              <span class="column-config-label">数据类型</span>
+            <span class="column-config-original">${escapeHtml(col)}</span>
+            <input type="text" class="column-config-display-input" 
+                   value="${escapeHtml(col)}" 
+                   placeholder="输入显示名称" 
+                   data-col-display="${escapeHtml(col)}" />
+            <div class="column-config-field-inline">
               <select class="column-config-select" data-col-type="${escapeHtml(col)}">
                 ${typeSelectOptions}
               </select>
             </div>
-            <div class="column-config-field">
-              <span class="column-config-label">图表形态</span>
+            <div class="column-config-field-inline">
               <select class="column-config-select" data-col-chart="${escapeHtml(col)}">
                 ${chartSelectOptions}
               </select>
@@ -644,9 +658,14 @@
         const colName = cb.getAttribute("data-col-checkbox");
         const typeSelect = columnConfigListEl.querySelector(`select[data-col-type="${colName}"]`);
         const chartSelect = columnConfigListEl.querySelector(`select[data-col-chart="${colName}"]`);
+        const displayInput = columnConfigListEl.querySelector(`input[data-col-display="${colName}"]`);
+        
+        // 获取显示名称，如果为空则使用原始列名
+        const displayName = displayInput && displayInput.value.trim() ? displayInput.value.trim() : colName;
         
         config.push({
-          name: colName,
+          name: colName,               // 原始列名
+          displayName: displayName,    // 显示名称（用于图表和入库）
           type: typeSelect ? typeSelect.value : "text",
           chartType: chartSelect ? chartSelect.value : "bar"
         });
@@ -688,6 +707,7 @@
       
       // 构建配置字符串
       const selectedColumns = selectedColumnConfig.map(c => c.name).join(",");
+      const displayNamesStr = selectedColumnConfig.map(c => `${c.name}:${c.displayName}`).join(",");
       const columnTypesStr = selectedColumnConfig.map(c => `${c.name}:${c.type}`).join(",");
       const chartTypesStr = selectedColumnConfig.map(c => `${c.name}:${c.chartType}`).join(",");
       
@@ -707,8 +727,8 @@
           const fd = new FormData();
           fd.append("file", pendingFile);
           
-          // 构建URL参数：包含选择的列、数据类型、图表类型配置
-          let importUrl = `/api/upload?sheet_name=${encodeURIComponent(sheetName)}&selected_columns=${encodeURIComponent(selectedColumns)}&column_types=${encodeURIComponent(columnTypesStr)}&chart_types=${encodeURIComponent(chartTypesStr)}`;
+          // 构建URL参数：包含选择的列、显示名称、数据类型、图表类型配置
+          let importUrl = `/api/upload?sheet_name=${encodeURIComponent(sheetName)}&selected_columns=${encodeURIComponent(selectedColumns)}&display_names=${encodeURIComponent(displayNamesStr)}&column_types=${encodeURIComponent(columnTypesStr)}&chart_types=${encodeURIComponent(chartTypesStr)}`;
           if (selectedMappingId) {
             importUrl += `&column_mapping_id=${selectedMappingId}`;
           }
@@ -1237,6 +1257,11 @@
       }
       latestAllRows = Array.isArray(data.all_rows) ? data.all_rows : data.preview_rows;
       latestColumns = Array.isArray(data.columns) ? data.columns : [];
+      
+      // 获取图表类型配置和显示名称配置
+      const chartTypeConfig = data.chart_type_config || {};
+      const displayNameConfig = data.display_name_config || {};
+      
       renderCustomColumnPicks(latestColumns);
       customSaveStatus.textContent = data.all_rows_truncated
         ? "提示：保存时仅包含前 5000 行数据。"
@@ -1250,6 +1275,224 @@
       renderRiskPanels(currentAnalysis);
       renderPersonTable(currentAnalysis);
       renderBase(data);
+      
+      // 渲染自定义图表（根据用户选择的图表类型）
+      renderCustomCharts(latestAllRows, latestColumns, chartTypeConfig, displayNameConfig);
+    }
+
+    // 渲染自定义图表（根据用户选择的图表类型）
+    function renderCustomCharts(rows, columns, chartTypeConfig, displayNameConfig) {
+      const customChartsSection = document.getElementById("custom-charts-section");
+      const customChartsGrid = document.getElementById("custom-charts-grid");
+      
+      if (!customChartsSection || !customChartsGrid) return;
+      
+      // 清除旧的自定义图表
+      customChartsGrid.innerHTML = "";
+      
+      // 过滤出需要展示图表的列（chartType不是table和none）
+      const chartColumns = columns.filter(col => {
+        const chartType = chartTypeConfig[col];
+        return chartType && chartType !== "table" && chartType !== "none";
+      });
+      
+      // 过滤出需要展示表格的列
+      const tableColumns = columns.filter(col => {
+        const chartType = chartTypeConfig[col];
+        return chartType === "table";
+      });
+      
+      if (chartColumns.length === 0 && tableColumns.length === 0) {
+        customChartsSection.style.display = "none";
+        return;
+      }
+      
+      customChartsSection.style.display = "block";
+      const themeColors = getThemeColors();
+      
+      // 渲染图表类型的列
+      chartColumns.forEach((col, idx) => {
+        const chartType = chartTypeConfig[col] || "bar";
+        const displayName = displayNameConfig[col] || col;
+        const canvasId = `custom-chart-${idx}`;
+        
+        // 获取该列的数据
+        const isNumeric = rows.every(row => typeof row[col] === "number" || row[col] === "" || row[col] === null);
+        
+        // 创建图表卡片
+        const chartCard = document.createElement("div");
+        chartCard.className = "chart-card";
+        chartCard.innerHTML = `<h3>${escapeHtml(displayName)}</h3><div class="chart-wrap"><canvas id="${canvasId}"></canvas></div>`;
+        customChartsGrid.appendChild(chartCard);
+        
+        // 如果是数值型数据，按人员统计
+        if (isNumeric && rows.length > 0) {
+          // 假设有姓名列
+          const nameCol = columns.find(c => c.toLowerCase().includes("姓名") || c.toLowerCase().includes("名字") || c.toLowerCase() === "name");
+          
+          if (nameCol) {
+            // 按姓名分组统计
+            const dataByPerson = {};
+            rows.forEach(row => {
+              const name = row[nameCol] || "未知";
+              const value = parseFloat(row[col]) || 0;
+              if (!dataByPerson[name]) dataByPerson[name] = 0;
+              dataByPerson[name] += value;
+            });
+            
+            const labels = Object.keys(dataByPerson);
+            const data = Object.values(dataByPerson);
+            
+            // 根据图表类型渲染
+            let chartConfig;
+            if (chartType === "pie") {
+              chartConfig = {
+                type: "pie",
+                data: {
+                  labels,
+                  datasets: [{
+                    data,
+                    backgroundColor: themeColors.chartColors.primary,
+                    borderColor: themeColors.border,
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  plugins: {
+                    legend: { position: "right" }
+                  }
+                }
+              };
+            } else if (chartType === "line") {
+              chartConfig = {
+                type: "line",
+                data: {
+                  labels,
+                  datasets: [{
+                    label: displayName,
+                    data,
+                    borderColor: themeColors.chartColors.primary,
+                    backgroundColor: themeColors.chartColors.primary + "40",
+                    fill: true,
+                  }]
+                },
+                options: makeCommonOptions(false)
+              };
+            } else {
+              // 默认柱状图
+              chartConfig = {
+                type: "bar",
+                data: {
+                  labels,
+                  datasets: [{
+                    label: displayName,
+                    data,
+                    backgroundColor: themeColors.chartColors.primary,
+                  }]
+                },
+                options: makeCommonOptions(false)
+              };
+            }
+            
+            try {
+              if (typeof Chart !== "undefined") {
+                charts[`custom_${idx}`] = new Chart(document.getElementById(canvasId), chartConfig);
+              }
+            } catch (e) {
+              console.error(`渲染图表 ${displayName} 失败:`, e);
+            }
+          } else {
+            // 没有姓名列，直接展示数值分布
+            const numericData = rows.map(row => parseFloat(row[col]) || 0);
+            
+            const chartConfig = {
+              type: chartType === "pie" ? "pie" : chartType === "line" ? "line" : "bar",
+              data: {
+                labels: rows.map((row, i) => `行${i + 1}`),
+                datasets: [{
+                  label: displayName,
+                  data: numericData,
+                  backgroundColor: themeColors.chartColors.primary,
+                  borderColor: chartType === "line" || chartType === "pie" ? themeColors.chartColors.primary : undefined,
+                  fill: chartType === "line",
+                }]
+              },
+              options: makeCommonOptions(chartType === "pie")
+            };
+            
+            try {
+              if (typeof Chart !== "undefined") {
+                charts[`custom_${idx}`] = new Chart(document.getElementById(canvasId), chartConfig);
+              }
+            } catch (e) {
+              console.error(`渲染图表 ${displayName} 失败:`, e);
+            }
+          }
+        } else {
+          // 文本类型数据，统计分布
+          const valueCounts = {};
+          rows.forEach(row => {
+            const value = row[col] || "空";
+            if (!valueCounts[value]) valueCounts[value] = 0;
+            valueCounts[value]++;
+          });
+          
+          const labels = Object.keys(valueCounts);
+          const data = Object.values(valueCounts);
+          
+          const chartConfig = {
+            type: chartType === "pie" ? "pie" : chartType === "line" ? "line" : "bar",
+            data: {
+              labels,
+              datasets: [{
+                label: displayName,
+                data,
+                backgroundColor: themeColors.chartColors.primary,
+              }]
+            },
+            options: makeCommonOptions(chartType === "pie")
+          };
+          
+          try {
+            if (typeof Chart !== "undefined") {
+              charts[`custom_${idx}`] = new Chart(document.getElementById(canvasId), chartConfig);
+            }
+          } catch (e) {
+            console.error(`渲染图表 ${displayName} 失败:`, e);
+          }
+        }
+      });
+      
+      // 渲染表格类型的列
+      if (tableColumns.length > 0) {
+        const tableCard = document.createElement("div");
+        tableCard.className = "chart-card";
+        tableCard.style.gridColumn = "1 / -1";
+        
+        // 使用显示名称
+        const headers = tableColumns.map(col => displayNameConfig[col] || col);
+        tableCard.innerHTML = `<h3>数据表格</h3><div class="table-wrap"><table id="custom-data-table"></table></div>`;
+        customChartsGrid.appendChild(tableCard);
+        
+        // 构建表格
+        const tableEl = document.getElementById("custom-data-table");
+        if (tableEl) {
+          let tableHtml = "<thead><tr>" + headers.map(h => `<th>${escapeHtml(h)}</th>`).join("") + "</tr></thead><tbody>";
+          
+          // 只显示前20行
+          const displayRows = rows.slice(0, 20);
+          displayRows.forEach(row => {
+            tableHtml += "<tr>" + tableColumns.map(col => `<td>${escapeHtml(row[col] || "")}</td>`).join("") + "</tr>";
+          });
+          
+          if (rows.length > 20) {
+            tableHtml += `<tr><td colspan="${tableColumns.length}" style="text-align:center;color:var(--muted);">... 还有 ${rows.length - 20} 行数据</td></tr>`;
+          }
+          
+          tableHtml += "</tbody>";
+          tableEl.innerHTML = tableHtml;
+        }
+      }
     }
 
     // ========== 历史数据管理功能（支持日期筛选） ==========
