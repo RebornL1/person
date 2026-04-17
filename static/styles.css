@@ -1859,83 +1859,54 @@
       background: var(--accent-light);
     }
     
-    /* ========== 列映射编辑区样式 ========== */
+    /* ========== 字段配置列表样式 ========== */
     .hint-small {
       font-size: 0.72rem;
       color: var(--muted);
       margin-left: 0.3rem;
     }
-    .mapping-edit-area {
-      margin-top: 0.8rem;
-      border: 1px solid var(--accent);
-      border-radius: 10px;
-      background: var(--surface-hover);
-      padding: 0.8rem;
-    }
-    .mapping-edit-area h5 {
-      font-size: 0.85rem;
-      color: var(--accent);
-      margin: 0 0 0.5rem;
-    }
-    .mapping-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 0.5rem;
-      max-height: 250px;
+    .column-config-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      max-height: 400px;
       overflow-y: auto;
-    }
-    .mapping-grid-item {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.4rem 0.5rem;
-      background: var(--surface);
-      border-radius: 8px;
       border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.5rem;
+      background: var(--surface);
     }
-    .mapping-grid-item label {
-      font-size: 0.78rem;
-      color: var(--muted);
-      min-width: 80px;
-    }
-    .mapping-grid-item input,
-    .mapping-grid-item select {
-      flex: 1;
-      padding: 0.3rem 0.4rem;
-      border: 1px solid var(--input-border);
-      background: var(--input-bg);
-      color: var(--text);
-      border-radius: 6px;
-      font-size: 0.78rem;
-    }
-    .mapping-actions {
-      display: flex;
-      gap: 0.5rem;
-      margin-top: 0.6rem;
-      justify-content: flex-end;
-    }
-    
-    /* ========== 图表配置列表样式 ========== */
-    .chart-config-list {
+    .column-config-item {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 0.5rem;
-    }
-    .chart-config-item {
-      display: flex;
-      justify-content: space-between;
+      grid-template-columns: auto 1fr 100px 100px;
+      gap: 0.6rem;
       align-items: center;
       padding: 0.5rem 0.7rem;
       background: var(--surface-2);
       border-radius: 8px;
       border: 1px solid var(--border);
+      transition: all 0.2s;
     }
-    .chart-name {
-      font-size: 0.8rem;
+    .column-config-item:hover {
+      border-color: var(--accent);
+    }
+    .column-config-item.selected {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .column-config-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+    .column-config-name {
+      font-size: 0.85rem;
       color: var(--text);
+      font-weight: 500;
     }
-    .chart-type-item {
-      padding: 0.3rem 0.5rem;
+    .column-config-select {
+      padding: 0.35rem 0.5rem;
       border: 1px solid var(--input-border);
       background: var(--input-bg);
       color: var(--text);
@@ -1943,7 +1914,16 @@
       font-size: 0.78rem;
       cursor: pointer;
     }
-    .chart-type-item:focus {
+    .column-config-select:focus {
       outline: none;
       border-color: var(--accent);
+    }
+    .column-config-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+    .column-config-field {
+      display: flex;
+      flex-direction: column;
     }
