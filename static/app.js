@@ -1251,10 +1251,6 @@
 
     function render(data) {
       const a = data.workload_analysis;
-      if (!a || !a.people || !a.people.length) {
-        showError("未识别到工作量分析模板字段。请至少包含：姓名、oncall未闭环、待处理工单、昨日新增、管控/内核/咨询、透传求助、问题单/需求单/wiki/分析报告。");
-        return;
-      }
       latestAllRows = Array.isArray(data.all_rows) ? data.all_rows : data.preview_rows;
       latestColumns = Array.isArray(data.columns) ? data.columns : [];
       
@@ -1262,22 +1258,87 @@
       const chartTypeConfig = data.chart_type_config || {};
       const displayNameConfig = data.display_name_config || {};
       
+      // 检查是否有数据
+      if (latestAllRows.length === 0 && latestColumns.length === 0) {
+        showError("导入的Excel文件没有数据。");
+        return;
+      }
+      
+      clearError();
+      
+      // 渲染基础数据和自定义列选择
       renderCustomColumnPicks(latestColumns);
       customSaveStatus.textContent = data.all_rows_truncated
         ? "提示：保存时仅包含前 5000 行数据。"
         : "";
       loadCustomModeList();
-      currentAnalysis = a;
-      renderFormula(currentAnalysis);
-      renderWeightControls(currentAnalysis);
-      renderKpis({ workload_analysis: currentAnalysis });
-      renderCharts(currentAnalysis);
-      renderRiskPanels(currentAnalysis);
-      renderPersonTable(currentAnalysis);
-      renderBase(data);
       
-      // 渲染自定义图表（根据用户选择的图表类型）
+      // 渲染自定义图表（根据用户选择的图表类型）- 始终执行
       renderCustomCharts(latestAllRows, latestColumns, chartTypeConfig, displayNameConfig);
+      
+      // 如果有工作量分析数据，渲染工作量相关图表
+      if (a && a.people && a.people.length) {
+        currentAnalysis = a;
+        renderFormula(currentAnalysis);
+        renderWeightControls(currentAnalysis);
+        renderKpis({ workload_analysis: currentAnalysis });
+        renderCharts(currentAnalysis);
+        renderRiskPanels(currentAnalysis);
+        renderPersonTable(currentAnalysis);
+        
+        // 确保工作量相关区域可见
+        const prioritySection = document.querySelector(".priority-section");
+        if (prioritySection) prioritySection.style.display = "block";
+        
+        const riskSection = document.querySelector("#result > section:nth-of-type(2)");
+        if (riskSection) riskSection.style.display = "block";
+        
+        const modelSection = document.querySelector("#result > section:nth-of-type(3)");
+        if (modelSection) modelSection.style.display = "block";
+        
+        const personTableSection = document.querySelector("#result > section:nth-of-type(4)");
+        if (personTableSection) personTableSection.style.display = "block";
+        
+        // 显示KPI侧边栏
+        const kpiSidebar = document.getElementById("kpi-sidebar");
+        const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
+        if (kpiSidebar) kpiSidebar.style.display = "block";
+        if (sidebarToggleBtn) sidebarToggleBtn.style.display = "block";
+      } else {
+        // 没有工作量分析数据时，隐藏相关工作量区域，显示提示
+        currentAnalysis = null;
+        
+        // 隐藏工作量重点看板
+        const prioritySection = document.querySelector(".priority-section");
+        if (prioritySection) prioritySection.style.display = "none";
+        
+        // 隐藏风险分层区域
+        const riskSection = document.querySelector("#result > section:nth-of-type(2)");
+        if (riskSection) riskSection.style.display = "none";
+        
+        // 隐藏模型配置区域
+        const modelSection = document.querySelector("#result > section:nth-of-type(3)");
+        if (modelSection) modelSection.style.display = "none";
+        
+        // 隐藏人员工作量明细
+        const personTableSection = document.querySelector("#result > section:nth-of-type(4)");
+        if (personTableSection) personTableSection.style.display = "none";
+        
+        // 隐藏KPI侧边栏
+        const kpiSidebar = document.getElementById("kpi-sidebar");
+        const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
+        if (kpiSidebar) kpiSidebar.style.display = "none";
+        if (sidebarToggleBtn) sidebarToggleBtn.style.display = "none";
+        
+        // 显示自定义图表区域
+        const customChartsSection = document.getElementById("custom-charts-section");
+        if (customChartsSection && chartTypeConfig && Object.keys(chartTypeConfig).length > 0) {
+          customChartsSection.style.display = "block";
+        }
+      }
+      
+      // 渲染基础数据信息
+      renderBase(data);
     }
 
     // 渲染自定义图表（根据用户选择的图表类型）
@@ -1289,6 +1350,14 @@
       
       // 清除旧的自定义图表
       customChartsGrid.innerHTML = "";
+      
+      // 如果没有图表配置，默认将所有列展示为表格
+      if (!chartTypeConfig || Object.keys(chartTypeConfig).length === 0) {
+        chartTypeConfig = {};
+        columns.forEach(col => {
+          chartTypeConfig[col] = "table";
+        });
+      }
       
       // 过滤出需要展示图表的列（chartType不是table和none）
       const chartColumns = columns.filter(col => {
@@ -1302,7 +1371,8 @@
         return chartType === "table";
       });
       
-      if (chartColumns.length === 0 && tableColumns.length === 0) {
+      // 如果没有数据，隐藏区域
+      if (rows.length === 0) {
         customChartsSection.style.display = "none";
         return;
       }
