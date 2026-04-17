@@ -63,11 +63,30 @@ def _ensure_upload_tables_exist(conn) -> None:
                 col_count BIGINT NOT NULL,
                 columns_json JSONB,
                 has_workload_analysis BOOLEAN DEFAULT FALSE,
+                has_analysis BOOLEAN DEFAULT TRUE,
+                sheet_name TEXT,
+                selected_columns TEXT,
+                display_names JSONB,
+                column_types JSONB,
+                chart_types JSONB,
                 notes TEXT,
-                column_mapping_id BIGINT
+                column_mapping_id BIGINT,
+                config_name TEXT
             )
             """).format(sql.Identifier(UPLOAD_SESSIONS_TABLE))
         )
+        # 添加新字段（如果表已存在）
+        try:
+            cur.execute(sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS has_analysis BOOLEAN DEFAULT TRUE").format(sql.Identifier(UPLOAD_SESSIONS_TABLE)))
+            cur.execute(sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS sheet_name TEXT").format(sql.Identifier(UPLOAD_SESSIONS_TABLE)))
+            cur.execute(sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS selected_columns TEXT").format(sql.Identifier(UPLOAD_SESSIONS_TABLE)))
+            cur.execute(sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS display_names JSONB").format(sql.Identifier(UPLOAD_SESSIONS_TABLE)))
+            cur.execute(sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS column_types JSONB").format(sql.Identifier(UPLOAD_SESSIONS_TABLE)))
+            cur.execute(sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS chart_types JSONB").format(sql.Identifier(UPLOAD_SESSIONS_TABLE)))
+            cur.execute(sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS config_name TEXT").format(sql.Identifier(UPLOAD_SESSIONS_TABLE)))
+        except Exception:
+            pass  # 字段已存在或其他错误，忽略
+        
         # 上传数据表：存储每次上传的具体数据行
         # 注意：移除 REFERENCES 约束，改用简单 BIGINT，兼容更多数据库环境
         cur.execute(
@@ -155,6 +174,12 @@ def _save_upload_to_db(
     columns: list[str],
     has_workload_analysis: bool,
     column_mapping_id: int | None = None,
+    sheet_name: str | None = None,
+    selected_columns: str | None = None,
+    display_names: dict[str, str] | None = None,
+    column_types: dict[str, str] | None = None,
+    chart_types: dict[str, str] | None = None,
+    config_name: str | None = None,
 ) -> int:
     """保存上传数据到数据库，返回 session_id。"""
     today = datetime.now().date()
@@ -162,14 +187,14 @@ def _save_upload_to_db(
     col_count = len(columns)
 
     with conn.cursor() as cur:
-        # 插入会话记录
+        # 插入会话记录（任何导入的数据都标记为有分析）
         cur.execute(
             sql.SQL("""
-            INSERT INTO {} (upload_date, filename, row_count, col_count, columns_json, has_workload_analysis, column_mapping_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO {} (upload_date, filename, row_count, col_count, columns_json, has_workload_analysis, has_analysis, column_mapping_id, sheet_name, selected_columns, display_names, column_types, chart_types, config_name)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             """).format(sql.Identifier(UPLOAD_SESSIONS_TABLE)),
-            (today, filename, row_count, col_count, json.dumps(columns), has_workload_analysis, column_mapping_id)
+            (today, filename, row_count, col_count, json.dumps(columns), has_workload_analysis, True, column_mapping_id, sheet_name, selected_columns, json.dumps(display_names or {}), json.dumps(column_types or {}), json.dumps(chart_types or {}), config_name)
         )
         session_id = cur.fetchone()[0]
 
@@ -431,6 +456,7 @@ async def upload_excel(
     display_names: str | None = Query(None, description="显示名称映射，格式 col:displayName"),
     column_types: str | None = Query(None, description="列数据类型，格式 col:type"),
     chart_types: str | None = Query(None, description="图表类型，格式 col:chartType"),
+    config_name: str | None = Query(None, description="配置名称，用于后续加载"),
 ) -> JSONResponse:
     name = (file.filename or "").lower()
     if not name.endswith((".xlsx", ".xls")):
@@ -547,9 +573,19 @@ async def upload_excel(
         try:
             with connect(dsn) as conn:
                 _ensure_upload_tables_exist(conn)
+                
+                # 解析column_types为字典
+                column_type_config = {}
+                if column_types:
+                    for item in column_types.split(","):
+                        if ":" in item:
+                            col, col_type = item.split(":", 1)
+                            column_type_config[col.strip()] = col_type.strip()
+                
                 session_id = _save_upload_to_db(
                     conn, file.filename or "unknown.xlsx", all_rows, columns, has_workload,
-                    column_mapping_id
+                    column_mapping_id, sheet_name, selected_columns,
+                    display_name_config, column_type_config, chart_type_config, config_name
                 )
                 payload["saved_to_db"] = True
                 payload["session_id"] = session_id
@@ -578,7 +614,7 @@ async def get_upload_history(
                 base_query = sql.SQL("""
                     SELECT 
                         id, upload_date, upload_time, filename, row_count, col_count,
-                        has_workload_analysis, notes
+                        has_workload_analysis, has_analysis, notes, sheet_name, config_name
                     FROM {}
                     WHERE 1=1
                 """).format(sql.Identifier(UPLOAD_SESSIONS_TABLE))
@@ -616,7 +652,10 @@ async def get_upload_history(
                         "row_count": r[4],
                         "col_count": r[5],
                         "has_workload_analysis": r[6],
-                        "notes": r[7],
+                        "has_analysis": r[7] if r[7] is not None else True,
+                        "notes": r[8],
+                        "sheet_name": r[9],
+                        "config_name": r[10],
                     })
                 # 转换为列表格式
                 items = [{"date": date, "sessions": sessions} for date, sessions in by_date.items()]
@@ -638,6 +677,50 @@ async def get_upload_history(
         "start_date": start_date.isoformat() if start_date else None,
         "end_date": end_date.isoformat() if end_date else None,
     })
+
+
+@app.get("/api/config/list")
+async def get_saved_configs() -> JSONResponse:
+    """获取已保存的数据配置列表（用于下拉加载）。"""
+    dsn = get_pg_dsn()
+    try:
+        with connect(dsn) as conn:
+            with conn.cursor() as cur:
+                # 查询所有有配置名称的会话（distinct by config_name）
+                cur.execute(
+                    sql.SQL("""
+                    SELECT DISTINCT config_name, display_names, column_types, chart_types, selected_columns, filename, upload_time
+                    FROM {}
+                    WHERE config_name IS NOT NULL AND config_name != ''
+                    ORDER BY upload_time DESC
+                    LIMIT 50
+                    """).format(sql.Identifier(UPLOAD_SESSIONS_TABLE))
+                )
+                rows = cur.fetchall()
+                
+                configs = []
+                for r in rows:
+                    if r[0]:  # config_name存在
+                        configs.append({
+                            "config_name": r[0],
+                            "display_names": parse_json_value(r[1]) or {},
+                            "column_types": parse_json_value(r[2]) or {},
+                            "chart_types": parse_json_value(r[3]) or {},
+                            "selected_columns": r[4] or "",
+                            "filename": r[5] or "",
+                            "upload_time": r[6].isoformat() if r[6] else None,
+                        })
+                
+                return JSONResponse(content={
+                    "ok": True,
+                    "configs": configs,
+                })
+    except Exception as e:
+        return JSONResponse(content={
+            "ok": False,
+            "configs": [],
+            "error": str(e),
+        })
 
 
 @app.get("/api/upload/latest")
