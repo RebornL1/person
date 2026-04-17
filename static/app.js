@@ -104,7 +104,7 @@
     let welcomeSection, loadSampleBtn, downloadTemplateBtn, loadLatestQuickBtn;
     // 导入配置弹窗相关
     let importConfigModal, closeImportConfigBtn, confirmImportBtn, importStatus;
-    let sheetListEl, columnListEl, chartTypeSelect;
+    let sheetListEl;
     
     // 导入预览数据缓存
     let pendingFile = null;
@@ -1610,8 +1610,6 @@
       confirmImportBtn = document.getElementById("confirm-import-btn");
       importStatus = document.getElementById("import-status");
       sheetListEl = document.getElementById("sheet-list");
-      columnListEl = document.getElementById("column-list");
-      chartTypeSelect = document.getElementById("chart-type-select");
       
       // 鼠标跟随光晕元素
       cursorGlow = document.getElementById("cursor-glow");
