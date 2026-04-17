@@ -109,6 +109,31 @@
     // 导入预览数据缓存
     let pendingFile = null;
     let pendingPreviewData = null;
+    // 当前列映射配置
+    let currentColumnMapping = {};
+    // 图表类型配置
+    let chartTypeConfig = {
+      score: "bar",
+      trans: "bar",
+      issue: "bar",
+      output: "bar"
+    };
+    
+    // 标准列名映射（用于工作量分析）
+    const STANDARD_COLUMNS = {
+      name: "姓名",
+      oncall_open: "oncall未闭环",
+      pending_ticket: "待处理工单",
+      new_issue_yesterday: "昨日新增问题",
+      governance_issue: "管控问题",
+      kernel_issue: "内核问题",
+      consult_issue: "咨询问题",
+      escalation_help: "透传求助",
+      issue_ticket_output: "问题单产出",
+      requirement_ticket_output: "需求单产出",
+      wiki_output: "wiki产出",
+      analysis_report_output: "分析报告产出"
+    };
     
     const charts = {};
     const WEIGHT_LABELS = {
@@ -498,6 +523,8 @@
       // 默认显示第一个sheet的列
       if (sheets.length > 0) {
         renderColumnList(sheets[0].columns, sheets[0].column_types);
+        renderChartConfigList();
+        initColumnMapping(sheets[0].columns);
       }
       
       // 绑定sheet点击事件
@@ -512,13 +539,161 @@
           const sheetIndex = parseInt(item.getAttribute("data-sheet-index"), 10);
           if (checkbox.checked && sheets[sheetIndex]) {
             renderColumnList(sheets[sheetIndex].columns, sheets[sheetIndex].column_types);
+            initColumnMapping(sheets[sheetIndex].columns);
           }
         });
       });
       
+      // 绑定自定义映射按钮
+      const editMappingBtn = document.getElementById("edit-mapping-btn");
+      const mappingEditArea = document.getElementById("mapping-edit-area");
+      if (editMappingBtn && mappingEditArea) {
+        editMappingBtn.addEventListener("click", () => {
+          mappingEditArea.style.display = mappingEditArea.style.display === "none" ? "block" : "none";
+        });
+      }
+      
+      // 绑定保存映射按钮
+      const saveMappingBtn = document.getElementById("save-mapping-btn");
+      if (saveMappingBtn) {
+        saveMappingBtn.addEventListener("click", saveColumnMapping);
+      }
+      
+      // 绑定取消映射按钮
+      const cancelMappingBtn = document.getElementById("cancel-mapping-btn");
+      if (cancelMappingBtn) {
+        cancelMappingBtn.addEventListener("click", () => {
+          document.getElementById("mapping-edit-area").style.display = "none";
+        });
+      }
+      
       importStatus.textContent = "";
       importConfigModal.classList.add("show");
       importConfigModal.setAttribute("aria-hidden", "false");
+    }
+    
+    // 渲染图表配置列表
+    function renderChartConfigList() {
+      const chartNames = [
+        { key: "score", name: "综合工作量评分", default: "bar" },
+        { key: "trans", name: "透传求助排序", default: "bar" },
+        { key: "issue", name: "每日问题数量构成", default: "bar" },
+        { key: "output", name: "鼓励项产出", default: "bar" }
+      ];
+      
+      const chartConfigListEl = document.getElementById("chart-config-list");
+      chartConfigListEl.innerHTML = chartNames.map(chart => `
+        <div class="chart-config-item">
+          <span class="chart-name">${chart.name}</span>
+          <select class="chart-type-item" data-chart-key="${chart.key}">
+            <option value="bar" ${chartTypeConfig[chart.key] === "bar" ? "selected" : ""}>柱状图</option>
+            <option value="line" ${chartTypeConfig[chart.key] === "line" ? "selected" : ""}>折线图</option>
+            <option value="pie" ${chartTypeConfig[chart.key] === "pie" ? "selected" : ""}>饼图</option>
+            <option value="table" ${chartTypeConfig[chart.key] === "table" ? "selected" : ""}>表格</option>
+          </select>
+        </div>
+      `).join("");
+      
+      // 绑定图表类型选择事件
+      chartConfigListEl.querySelectorAll(".chart-type-item").forEach(select => {
+        select.addEventListener("change", (e) => {
+          const chartKey = e.target.getAttribute("data-chart-key");
+          chartTypeConfig[chartKey] = e.target.value;
+        });
+      });
+    }
+    
+    // 初始化列映射编辑
+    function initColumnMapping(columns) {
+      currentColumnMapping = {};
+      const mappingGridEl = document.getElementById("mapping-grid");
+      
+      // 为每个标准列创建映射选择
+      mappingGridEl.innerHTML = Object.entries(STANDARD_COLUMNS).map(([key, label]) => {
+        // 尝试自动匹配列名
+        const matchedCol = findBestMatch(columns, key, label);
+        const options = columns.map(col => 
+          `<option value="${escapeHtml(col)}" ${matchedCol === col ? "selected" : ""}>${escapeHtml(col)}</option>`
+        ).join("");
+        
+        return `
+          <div class="mapping-grid-item">
+            <label>${label}</label>
+            <select data-mapping-key="${key}">
+              <option value="">--不映射--</option>
+              ${options}
+            </select>
+          </div>
+        `;
+      }).join("");
+      
+      // 绑定映射选择事件
+      mappingGridEl.querySelectorAll("select").forEach(select => {
+        select.addEventListener("change", (e) => {
+          const key = e.target.getAttribute("data-mapping-key");
+          currentColumnMapping[key] = e.target.value;
+        });
+        // 初始化映射值
+        const key = select.getAttribute("data-mapping-key");
+        currentColumnMapping[key] = select.value;
+      });
+    }
+    
+    // 查找最佳匹配列
+    function findBestMatch(columns, key, label) {
+      // 尝试精确匹配
+      for (const col of columns) {
+        if (col === label) return col;
+      }
+      // 尝试包含匹配
+      const normalizedLabel = label.toLowerCase().replace(/[()\s]/g, "");
+      for (const col of columns) {
+        const normalizedCol = col.toLowerCase().replace(/[()\s]/g, "");
+        if (normalizedCol.includes(normalizedLabel) || normalizedLabel.includes(normalizedCol)) {
+          return col;
+        }
+      }
+      // 根据key的特殊规则匹配
+      const aliasMap = {
+        name: ["姓名", "名字", "员工", "人员"],
+        oncall_open: ["oncall", "未闭环", "接单"],
+        pending_ticket: ["工单", "待处理"],
+        new_issue_yesterday: ["昨日新增", "新增问题"],
+        governance_issue: ["管控"],
+        kernel_issue: ["内核"],
+        consult_issue: ["咨询"],
+        escalation_help: ["透传", "求助"],
+        issue_ticket_output: ["问题单", "提问题"],
+        requirement_ticket_output: ["需求单", "提需求"],
+        wiki_output: ["wiki", "输出"],
+        analysis_report_output: ["分析报告", "报告"]
+      };
+      
+      const aliases = aliasMap[key] || [];
+      for (const alias of aliases) {
+        for (const col of columns) {
+          if (col.toLowerCase().includes(alias.toLowerCase())) {
+            return col;
+          }
+        }
+      }
+      
+      return "";
+    }
+    
+    // 保存列映射配置
+    function saveColumnMapping() {
+      const mappingEditArea = document.getElementById("mapping-edit-area");
+      mappingEditArea.style.display = "none";
+      
+      // 显示保存成功提示
+      importStatus.textContent = "列映射配置已保存";
+      importStatus.style.color = "var(--good)";
+      
+      // 3秒后清除提示
+      setTimeout(() => {
+        importStatus.textContent = "";
+      }, 3000);
     }
     
     // 渲染列列表
@@ -575,8 +750,13 @@
         selectedColumns.push(cb.getAttribute("data-col-name"));
       });
       
-      // 获取图表类型
-      const chartType = chartTypeSelect.value;
+      if (selectedColumns.length === 0) {
+        importStatus.textContent = "请至少选择一个展示列";
+        return;
+      }
+      
+      // 构建图表类型配置字符串
+      const chartTypesStr = Object.entries(chartTypeConfig).map(([k, v]) => `${k}:${v}`).join(",");
       
       importStatus.textContent = `正在导入 ${selectedSheetNames.length} 个Sheet...`;
       
@@ -594,8 +774,8 @@
           const fd = new FormData();
           fd.append("file", pendingFile);
           
-          // 构建URL参数
-          let importUrl = `/api/upload?sheet_name=${encodeURIComponent(sheetName)}&selected_columns=${encodeURIComponent(selectedColumns.join(","))}&chart_types=${chartType}`;
+          // 构建URL参数：包含选择的列、图表类型配置
+          let importUrl = `/api/upload?sheet_name=${encodeURIComponent(sheetName)}&selected_columns=${encodeURIComponent(selectedColumns.join(","))}&chart_types=${encodeURIComponent(chartTypesStr)}`;
           if (selectedMappingId) {
             importUrl += `&column_mapping_id=${selectedMappingId}`;
           }

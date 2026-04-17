@@ -267,23 +267,35 @@
         <button type="button" class="btn" id="close-import-config">取消</button>
       </div>
       <div class="import-config-body">
+        <!-- Sheet列表 -->
         <div class="import-config-section">
           <h4>选择Sheet页</h4>
           <div id="sheet-list" class="sheet-list"></div>
         </div>
+        
+        <!-- 列选择与映射 -->
         <div class="import-config-section">
-          <h4>选择展示列</h4>
+          <h4>选择展示列 <button type="button" class="btn small-btn" id="edit-mapping-btn">自定义映射</button></h4>
           <div id="column-list" class="column-list"></div>
+          
+          <!-- 列映射编辑区（默认隐藏） -->
+          <div id="mapping-edit-area" class="mapping-edit-area" style="display:none;">
+            <h5>列映射配置</h5>
+            <p class="hint-text">当Excel列名与标准模板不匹配时，可在此编辑映射关系</p>
+            <div id="mapping-grid" class="mapping-grid"></div>
+            <div class="mapping-actions">
+              <button type="button" class="btn" id="save-mapping-btn">保存映射</button>
+              <button type="button" class="btn" id="cancel-mapping-btn">取消</button>
+            </div>
+          </div>
         </div>
+        
+        <!-- 图表类型配置 -->
         <div class="import-config-section">
-          <h4>图表类型</h4>
-          <select id="chart-type-select" class="chart-type-select">
-            <option value="bar">柱状图</option>
-            <option value="line">折线图</option>
-            <option value="pie">饼图</option>
-            <option value="table">表格</option>
-          </select>
+          <h4>图表类型配置</h4>
+          <div id="chart-config-list" class="chart-config-list"></div>
         </div>
+        
         <div class="import-config-actions">
           <button type="button" class="btn primary-btn" id="confirm-import-btn">确认导入</button>
           <span id="import-status" class="status-note"></span>
