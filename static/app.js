@@ -506,51 +506,79 @@
     
     // 显示导入配置弹窗
     function showImportConfigModal(previewData) {
-      const sheets = previewData.sheets || [];
-      
-      // 渲染sheet列表
-      sheetListEl.innerHTML = sheets.map((sheet, idx) => `
-        <div class="sheet-item ${idx === 0 ? 'selected' : ''}" data-sheet-index="${idx}">
-          <input type="checkbox" checked="${idx === 0 ? 'checked' : ''}" data-sheet-name="${escapeHtml(sheet.sheet_name)}" />
-          <div class="sheet-item-info">
-            <span class="sheet-item-name">${escapeHtml(sheet.sheet_name)}</span>
-            <span class="sheet-item-meta">${sheet.row_count}行 / ${sheet.col_count}列</span>
-          </div>
-          ${sheet.has_workload_analysis ? '<span class="sheet-item-badge">可分析</span>' : ''}
-        </div>
-      `).join("");
-      
-      // 默认显示第一个sheet的字段配置
-      if (sheets.length > 0) {
-        renderColumnConfigList(sheets[0].columns, sheets[0].column_types);
+      try {
+        const sheets = previewData.sheets || [];
+        
+        // 渲染sheet列表
+        if (sheetListEl) {
+          sheetListEl.innerHTML = sheets.map((sheet, idx) => `
+            <div class="sheet-item ${idx === 0 ? 'selected' : ''}" data-sheet-index="${idx}">
+              <input type="checkbox" ${idx === 0 ? 'checked' : ''} data-sheet-name="${escapeHtml(sheet.sheet_name)}" />
+              <div class="sheet-item-info">
+                <span class="sheet-item-name">${escapeHtml(sheet.sheet_name)}</span>
+                <span class="sheet-item-meta">${sheet.row_count}行 / ${sheet.col_count}列</span>
+              </div>
+              ${sheet.has_workload_analysis ? '<span class="sheet-item-badge">可分析</span>' : ''}
+            </div>
+          `).join("");
+        }
+        
+        // 默认显示第一个sheet的字段配置
+        if (sheets.length > 0) {
+          renderColumnConfigList(sheets[0].columns, sheets[0].column_types);
+        } else {
+          renderColumnConfigList([], {});
+        }
+        
+        // 绑定sheet点击事件
+        if (sheetListEl) {
+          sheetListEl.querySelectorAll(".sheet-item").forEach(item => {
+            item.addEventListener("click", (e) => {
+              if (e.target.tagName === "INPUT") return;
+              const checkbox = item.querySelector("input[type='checkbox']");
+              checkbox.checked = !checkbox.checked;
+              item.classList.toggle("selected", checkbox.checked);
+              // 更新字段配置显示选中sheet的字段
+              const sheetIndex = parseInt(item.getAttribute("data-sheet-index"), 10);
+              if (checkbox.checked && sheets[sheetIndex]) {
+                renderColumnConfigList(sheets[sheetIndex].columns, sheets[sheetIndex].column_types);
+              }
+            });
+          });
+        }
+        
+        if (importStatus) importStatus.textContent = "";
+        if (importConfigModal) {
+          importConfigModal.classList.add("show");
+          importConfigModal.setAttribute("aria-hidden", "false");
+        }
+      } catch (err) {
+        console.error("显示导入配置弹窗出错:", err);
+        showError(`显示配置弹窗出错：${err.message || err}`);
       }
-      
-      // 绑定sheet点击事件
-      sheetListEl.querySelectorAll(".sheet-item").forEach(item => {
-        item.addEventListener("click", (e) => {
-          if (e.target.tagName === "INPUT") return;
-          const checkbox = item.querySelector("input[type='checkbox']");
-          checkbox.checked = !checkbox.checked;
-          item.classList.toggle("selected", checkbox.checked);
-          // 更新字段配置显示选中sheet的字段
-          const sheetIndex = parseInt(item.getAttribute("data-sheet-index"), 10);
-          if (checkbox.checked && sheets[sheetIndex]) {
-            renderColumnConfigList(sheets[sheetIndex].columns, sheets[sheetIndex].column_types);
-          }
-        });
-      });
-      
-      importStatus.textContent = "";
-      importConfigModal.classList.add("show");
-      importConfigModal.setAttribute("aria-hidden", "false");
     }
     
     // 渲染字段配置列表（每行包含勾选框、列名、类型选择、图表形态选择）
     function renderColumnConfigList(columns, columnTypes) {
       const columnConfigListEl = document.getElementById("column-config-list");
       
+      // 防御性检查：确保元素存在
+      if (!columnConfigListEl) {
+        console.error("column-config-list 元素不存在");
+        return;
+      }
+      
+      // 防御性检查：确保columns数组有效
+      if (!columns || !Array.isArray(columns) || columns.length === 0) {
+        columnConfigListEl.innerHTML = '<p class="hint-text">当前sheet无可用字段</p>';
+        return;
+      }
+      
+      // 确保columnTypes是有效对象
+      const safeColumnTypes = columnTypes || {};
+      
       columnConfigListEl.innerHTML = columns.map(col => {
-        const detectedType = columnTypes[col] || "text";
+        const detectedType = safeColumnTypes[col] || "text";
         const typeSelectOptions = `
           <option value="numeric" ${detectedType === "numeric" ? "selected" : ""}>数值</option>
           <option value="text" ${detectedType === "text" ? "selected" : ""}>文本</option>
@@ -606,6 +634,11 @@
     function getSelectedColumnConfig() {
       const columnConfigListEl = document.getElementById("column-config-list");
       const config = [];
+      
+      // 防御性检查
+      if (!columnConfigListEl) {
+        return config;
+      }
       
       columnConfigListEl.querySelectorAll("input[type='checkbox']:checked").forEach(cb => {
         const colName = cb.getAttribute("data-col-checkbox");
