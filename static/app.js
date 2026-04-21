@@ -1501,21 +1501,42 @@
 
     // 渲染自定义图表（根据用户选择的图表类型）
     function renderCustomCharts(rows, columns, chartTypeConfig, displayNameConfig) {
+      console.log("renderCustomCharts called:", { 
+        rowsCount: rows?.length, 
+        columns, 
+        chartTypeConfig, 
+        displayNameConfig,
+        sampleRow: rows?.[0]
+      });
+      
       const customChartsSection = document.getElementById("custom-charts-section");
       const customChartsGrid = document.getElementById("custom-charts-grid");
       
-      if (!customChartsSection || !customChartsGrid) return;
+      if (!customChartsSection || !customChartsGrid) {
+        console.error("Custom chart elements not found");
+        return;
+      }
       
       // 清除旧的自定义图表
       customChartsGrid.innerHTML = "";
       
+      // 如果没有数据，隐藏区域
+      if (!rows || rows.length === 0) {
+        console.warn("No rows data for custom charts");
+        customChartsSection.style.display = "none";
+        return;
+      }
+      
       // 如果没有图表配置，默认将所有列展示为表格
       if (!chartTypeConfig || Object.keys(chartTypeConfig).length === 0) {
+        console.log("No chart type config, using table for all columns");
         chartTypeConfig = {};
         columns.forEach(col => {
           chartTypeConfig[col] = "table";
         });
       }
+      
+      console.log("Final chartTypeConfig:", chartTypeConfig);
       
       // 过滤出需要展示图表的列（chartType不是table和none）
       const chartColumns = columns.filter(col => {
@@ -1529,11 +1550,8 @@
         return chartType === "table";
       });
       
-      // 如果没有数据，隐藏区域
-      if (rows.length === 0) {
-        customChartsSection.style.display = "none";
-        return;
-      }
+      console.log("chartColumns:", chartColumns);
+      console.log("tableColumns:", tableColumns);
       
       customChartsSection.style.display = "block";
       const themeColors = getThemeColors();
