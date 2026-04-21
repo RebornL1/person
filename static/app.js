@@ -1552,12 +1552,26 @@
       
       console.log("chartColumns:", chartColumns);
       console.log("tableColumns:", tableColumns);
+      console.log("rows sample:", rows.slice(0, 2));
+      console.log("columns order:", columns);
+      
+      if (chartColumns.length === 0) {
+        console.warn("没有需要渲染图表的列");
+        const noChartMsg = document.createElement("div");
+        noChartMsg.className = "chart-card";
+        noChartMsg.innerHTML = "<h3>暂无图表数据</h3><p>请在上传时选择图表类型配置</p>";
+        customChartsGrid.appendChild(noChartMsg);
+        return;
+      }
       
       customChartsSection.style.display = "block";
       const themeColors = getThemeColors();
       
+      console.log("开始渲染图表，共", chartColumns.length, "个图表");
+      
       // 渲染图表类型的列
       chartColumns.forEach((col, idx) => {
+        console.log(`渲染第 ${idx} 个图表: 列名="${col}", 图表类型="${chartTypeConfig[col]}"`);
         const chartType = chartTypeConfig[col] || "bar";
         const displayName = displayNameConfig[col] || col;
         const canvasId = `custom-chart-${idx}`;
@@ -1664,14 +1678,22 @@
           }
           
           try {
-            if (typeof Chart !== "undefined") {
-              charts[`custom_${idx}`] = new Chart(document.getElementById(canvasId), chartConfig);
+            console.log(`尝试创建数值图表 ${displayName}, canvasId=${canvasId}, chartType=${chartType}`);
+            const canvasEl = document.getElementById(canvasId);
+            console.log(`数值图表canvas元素:`, canvasEl ? "找到" : "未找到");
+            console.log(`数值图表数据: labels=${labels?.length}, data=${data?.length}`);
+            if (typeof Chart !== "undefined" && canvasEl) {
+              charts[`custom_${idx}`] = new Chart(canvasEl, chartConfig);
+              console.log(`数值图表 ${displayName} 创建成功`);
+            } else {
+              console.error(`Chart库未定义(${typeof Chart})或canvas不存在`);
             }
           } catch (e) {
-            console.error(`渲染图表 ${displayName} 失败:`, e);
+            console.error(`渲染数值图表 ${displayName} 失败:`, e);
           }
         } else {
           // 文本类型数据，统计分布
+          console.log(`列 ${col} 为文本类型，准备统计分布`);
           const valueCounts = {};
           rows.forEach(row => {
             const value = String(row[col] || "").trim() || "空";
@@ -1711,14 +1733,21 @@
           };
           
           try {
-            if (typeof Chart !== "undefined") {
-              charts[`custom_${idx}`] = new Chart(document.getElementById(canvasId), chartConfig);
+            console.log(`尝试创建文本图表 ${displayName}, canvasId=${canvasId}`);
+            const canvasEl = document.getElementById(canvasId);
+            console.log(`文本图表canvas元素:`, canvasEl ? "找到" : "未找到");
+            console.log(`文本图表数据: labels=${labels?.length}, data=${data?.length}`);
+            if (typeof Chart !== "undefined" && canvasEl) {
+              charts[`custom_${idx}`] = new Chart(canvasEl, chartConfig);
+              console.log(`文本图表 ${displayName} 创建成功`);
             }
           } catch (e) {
-            console.error(`渲染图表 ${displayName} 失败:`, e);
+            console.error(`渲染文本图表 ${displayName} 失败:`, e);
           }
         }
       });
+      
+      console.log("图表渲染完成，共创建", Object.keys(charts).filter(k => k.startsWith('custom_')).length, "个自定义图表");
       
       // 渲染表格类型的列
       if (tableColumns.length > 0) {
