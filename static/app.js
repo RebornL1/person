@@ -1596,6 +1596,8 @@
         const numericValues = rows.filter(row => row[col] !== "" && row[col] !== null).map(row => parseFloat(row[col]));
         const isNumeric = numericValues.length > 0 && numericValues.every(v => !isNaN(v));
         
+        console.log(`列 ${col} isNumeric=${isNumeric}, numericValues count=${numericValues.length}`);
+        
         // 创建图表卡片
         const chartCard = document.createElement("div");
         chartCard.className = "chart-card";
@@ -1610,10 +1612,13 @@
           c.includes("姓名")
         );
         
+        console.log(`图表 ${col} 的姓名列: ${nameCol || '未找到'}`);
+        
+        // 准备数据和标签
+        let labels, data;
+        
         if (isNumeric && rows.length > 0) {
-          // 数值型数据图表
-          let labels, data;
-          
+          // 数值型数据
           if (nameCol) {
             // 按姓名分组统计
             const dataByPerson = {};
@@ -1630,83 +1635,7 @@
             labels = rows.map((row, i) => `${i + 1}`);
             data = rows.map(row => parseFloat(row[col]) || 0);
           }
-          
-          // 根据图表类型创建配置
-          let chartConfig;
-          const chartColors = [
-            themeColors.chartColors.primary,
-            themeColors.chartColors.green,
-            themeColors.chartColors.purple,
-            themeColors.chartColors.teal,
-            themeColors.chartColors.pink,
-            themeColors.chartColors.orange,
-            themeColors.chartColors.sky,
-            themeColors.chartColors.amber,
-          ];
-          
-          if (chartType === "pie") {
-            chartConfig = {
-              type: "pie",
-              data: {
-                labels,
-                datasets: [{
-                  data,
-                  backgroundColor: labels.map((_, i) => chartColors[i % chartColors.length]),
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: { position: "right", labels: { color: themeColors.text } }
-                }
-              }
-            };
-          } else if (chartType === "line") {
-            chartConfig = {
-              type: "line",
-              data: {
-                labels,
-                datasets: [{
-                  label: displayName,
-                  data,
-                  borderColor: themeColors.chartColors.primary,
-                  backgroundColor: themeColors.chartColors.primary + "40",
-                  fill: true,
-                }]
-              },
-              options: makeCommonOptions(false)
-            };
-          } else {
-            // 默认柱状图
-            chartConfig = {
-              type: "bar",
-              data: {
-                labels,
-                datasets: [{
-                  label: displayName,
-                  data,
-                  backgroundColor: themeColors.chartColors.primary,
-                }]
-              },
-              options: makeCommonOptions(false)
-            };
-          }
-          
-          try {
-            console.log(`尝试创建数值图表 ${displayName}, canvasId=${canvasId}, chartType=${chartType}`);
-            const canvasEl = document.getElementById(canvasId);
-            console.log(`数值图表canvas元素:`, canvasEl ? "找到" : "未找到");
-            console.log(`数值图表数据: labels=${labels?.length}, data=${data?.length}`);
-            if (typeof Chart !== "undefined" && canvasEl) {
-              charts[`custom_${idx}`] = new Chart(canvasEl, chartConfig);
-              console.log(`数值图表 ${displayName} 创建成功`);
-            } else {
-              console.error(`Chart库未定义(${typeof Chart})或canvas不存在`);
-            }
-          } catch (e) {
-            console.error(`渲染数值图表 ${displayName} 失败:`, e);
-          }
+          console.log(`数值图表 ${col}: labels=${JSON.stringify(labels)}, data=${JSON.stringify(data)}`);
         } else {
           // 文本类型数据，统计分布
           console.log(`列 ${col} 为文本类型，准备统计分布`);
@@ -1717,50 +1646,96 @@
             valueCounts[value]++;
           });
           
-          const labels = Object.keys(valueCounts).slice(0, 10); // 最多显示10个分类
-          const data = labels.map(l => valueCounts[l]);
-          
-          const chartConfig = {
-            type: chartType === "pie" ? "pie" : "bar",
+          labels = Object.keys(valueCounts).slice(0, 10);
+          data = labels.map(l => valueCounts[l]);
+          console.log(`文本图表 ${col}: labels=${JSON.stringify(labels)}, data=${JSON.stringify(data)}`);
+        }
+        
+        // 根据图表类型创建配置
+        let chartConfig;
+        const chartColors = [
+          themeColors.chartColors.primary,
+          themeColors.chartColors.green,
+          themeColors.chartColors.purple,
+          themeColors.chartColors.teal,
+          themeColors.chartColors.pink,
+          themeColors.chartColors.orange,
+          themeColors.chartColors.sky,
+          themeColors.chartColors.amber,
+        ];
+        
+        if (chartType === "pie") {
+          chartConfig = {
+            type: "pie",
             data: {
               labels,
               datasets: [{
-                label: displayName + " (数量)",
                 data,
-                backgroundColor: labels.map((_, i) => [
-                  themeColors.chartColors.primary,
-                  themeColors.chartColors.green,
-                  themeColors.chartColors.purple,
-                  themeColors.chartColors.teal,
-                  themeColors.chartColors.pink,
-                  themeColors.chartColors.orange,
-                  themeColors.chartColors.sky,
-                  themeColors.chartColors.amber,
-                ][i % 8]),
+                backgroundColor: labels.map((_, i) => chartColors[i % chartColors.length]),
               }]
             },
-            options: chartType === "pie" ? {
+            options: {
               responsive: true,
               maintainAspectRatio: false,
               plugins: {
                 legend: { position: "right", labels: { color: themeColors.text } }
               }
-            } : makeCommonOptions(false)
+            }
           };
-          
+        } else if (chartType === "line") {
+          chartConfig = {
+            type: "line",
+            data: {
+              labels,
+              datasets: [{
+                label: displayName,
+                data,
+                borderColor: themeColors.chartColors.primary,
+                backgroundColor: themeColors.chartColors.primary + "40",
+                fill: true,
+              }]
+            },
+            options: makeCommonOptions(false)
+          };
+        } else {
+          // 默认柱状图
+          chartConfig = {
+            type: "bar",
+            data: {
+              labels,
+              datasets: [{
+                label: displayName,
+                data,
+                backgroundColor: isNumeric ? themeColors.chartColors.primary : labels.map((_, i) => chartColors[i % chartColors.length]),
+              }]
+            },
+            options: makeCommonOptions(false)
+          };
+        }
+        
+        // 使用 setTimeout 确保 DOM 已更新
+        setTimeout(() => {
           try {
-            console.log(`尝试创建文本图表 ${displayName}, canvasId=${canvasId}`);
+            console.log(`尝试创建图表 ${displayName}, canvasId=${canvasId}, chartType=${chartType}`);
             const canvasEl = document.getElementById(canvasId);
-            console.log(`文本图表canvas元素:`, canvasEl ? "找到" : "未找到");
-            console.log(`文本图表数据: labels=${labels?.length}, data=${data?.length}`);
+            console.log(`canvas元素:`, canvasEl ? "找到" : "未找到");
+            console.log(`Chart库:`, typeof Chart !== "undefined" ? "已加载" : "未加载");
+            
             if (typeof Chart !== "undefined" && canvasEl) {
+              // 先销毁已存在的图表（如果有）
+              const existingChart = charts[`custom_${idx}`];
+              if (existingChart) {
+                existingChart.destroy();
+              }
               charts[`custom_${idx}`] = new Chart(canvasEl, chartConfig);
-              console.log(`文本图表 ${displayName} 创建成功`);
+              console.log(`图表 ${displayName} 创建成功`);
+            } else {
+              console.error(`Chart库未定义(${typeof Chart})或canvas不存在`);
             }
           } catch (e) {
-            console.error(`渲染文本图表 ${displayName} 失败:`, e);
+            console.error(`渲染图表 ${displayName} 失败:`, e);
           }
-        }
+        }, 50);
       });
       
       console.log("图表渲染完成，共创建", Object.keys(charts).filter(k => k.startsWith('custom_')).length, "个自定义图表");
