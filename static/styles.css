@@ -259,26 +259,27 @@
     .em-warn { color: var(--warn); }
     .chart-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.7rem;
+      grid-template-columns: repeat(1, minmax(0, 1fr));
+      gap: 1rem;
     }
     .chart-card {
       border: 1px solid var(--border);
       border-radius: var(--radius);
       background: var(--chart-bg);
-      padding: 0.75rem;
+      padding: 1rem;
       transition: transform 180ms ease, border-color 180ms ease;
+      min-width: 0;
     }
     .chart-card:hover {
       transform: translateY(-2px);
       border-color: var(--accent);
     }
     .chart-card h3 {
-      margin: 0 0 0.5rem;
+      margin: 0 0 0.6rem;
       color: var(--muted);
-      font-size: clamp(0.78rem, 2.2vw, 0.88rem);
+      font-size: clamp(0.85rem, 2.5vw, 0.95rem);
     }
-    .chart-wrap { position: relative; height: clamp(210px, 33vw, 320px); }
+    .chart-wrap { position: relative; height: clamp(420px, 50vw, 640px); min-height: 350px; }
     .risk-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -500,10 +501,11 @@
       .wrap { max-width: min(90vw, 1800px); }
       .grid-4 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
       .weight-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-      .chart-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .risk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .kpi { padding: 1.1rem; }
-      .chart-card { padding: 1rem; }
+      .chart-card { padding: 1.2rem; }
+      .chart-wrap { height: clamp(480px, 55vw, 720px); }
       .column-picks { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
       h1 { font-size: 2.5rem; }
       .sub { font-size: 1.1rem; }
@@ -512,7 +514,8 @@
       .wrap { max-width: min(85vw, 2200px); }
       .grid-4 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
       .weight-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-      .chart-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .chart-wrap { height: clamp(560px, 60vw, 800px); }
       .kpi b { font-size: 1.6rem; }
       .kpi span { font-size: 0.85rem; }
     }
@@ -789,7 +792,8 @@
     }
     .chart-wrap { 
       position: relative; 
-      height: clamp(220px, 35vw, 350px);
+      height: clamp(420px, 50vw, 640px);
+      min-height: 350px;
       transition: transform 0.3s;
     }
     .chart-card:hover .chart-wrap { transform: scale(1.01); }
