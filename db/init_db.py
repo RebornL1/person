@@ -25,8 +25,6 @@ from dotenv import load_dotenv
 # 加载 .env
 load_dotenv(PROJECT_DIR / ".env")
 
-from psycopg import connect
-
 
 def init_database():
     """初始化数据库表结构"""
@@ -38,10 +36,25 @@ def init_database():
         print("  PG_DSN=postgresql://user:password@host:port/database")
         sys.exit(1)
     
-    print(f"连接数据库: {dsn.split('@')[1] if '@' in dsn else dsn}")
+    # 安全地提取数据库连接信息（避免 tuple index out of range）
+    try:
+        if '@' in dsn:
+            parts = dsn.split('@')
+            if len(parts) >= 2:
+                db_info = parts[1]
+            else:
+                db_info = dsn
+        else:
+            db_info = dsn
+        print(f"连接数据库: {db_info}")
+    except Exception:
+        print(f"连接数据库...")
+    
     print("-" * 50)
     
     try:
+        from psycopg import connect
+        
         with connect(dsn) as conn:
             # 导入并执行表结构初始化
             from db.schema import ensure_upload_tables_exist, check_db_health
@@ -53,13 +66,29 @@ def init_database():
             print("检查数据库状态...")
             health = check_db_health(conn)
             
+            print("-" * 50)
             if health["healthy"]:
-                print("数据库初始化成功!")
+                print("✅ 数据库初始化成功!")
                 print("-" * 50)
+                print("表统计:")
                 for table_name, info in health["tables"].items():
-                    print(f"  - {table_name}: {info['count']} 条记录")
+                    exists_mark = "✓" if info.get("exists", True) else "✗"
+                    count = info.get("count", 0)
+                    print(f"  [{exists_mark}] {table_name}: {count} 条记录")
             else:
-                print(f"数据库检查失败: {health['message']}")
+                print(f"⚠️ 数据库状态异常: {health['message']}")
+                print("-" * 50)
+                print("表统计:")
+                for table_name, info in health["tables"].items():
+                    exists_mark = "✓" if info.get("exists", True) else "✗"
+                    count = info.get("count", 0)
+                    error = info.get("error", "")
+                    if error:
+                        print(f"  [{exists_mark}] {table_name}: 错误 - {error}")
+                    else:
+                        print(f"  [{exists_mark}] {table_name}: {count} 条记录")
+                print("-" * 50)
+                print("提示: 请检查数据库连接或手动运行建表语句")
                 sys.exit(1)
                 
     except ImportError as e:
@@ -68,6 +97,8 @@ def init_database():
         sys.exit(1)
     except Exception as e:
         print(f"数据库初始化失败: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 

@@ -135,7 +135,8 @@ def ensure_upload_tables_exist(conn) -> None:
                 sql.Identifier(COLUMN_MAPPING_TABLE)
             )
         )
-        default_count = cur.fetchone()[0]
+        row = cur.fetchone()
+        default_count = row[0] if row else 0
         
         if default_count == 0:
             # 插入默认配置
@@ -196,7 +197,8 @@ def get_table_list(conn) -> list[str]:
             """,
             (UPLOAD_SESSIONS_TABLE, UPLOAD_DATA_TABLE, COLUMN_MAPPING_TABLE)
         )
-        return [r[0] for r in cur.fetchall()]
+        rows = cur.fetchall()
+        return [r[0] for r in rows] if rows else []
 
 
 def check_db_health(conn) -> dict:
@@ -210,38 +212,65 @@ def check_db_health(conn) -> dict:
     try:
         with conn.cursor() as cur:
             # 检查上传会话表
-            cur.execute(
-                sql.SQL("SELECT COUNT(*) FROM {}").format(
-                    sql.Identifier(UPLOAD_SESSIONS_TABLE)
+            try:
+                cur.execute(
+                    sql.SQL("SELECT COUNT(*) FROM {}").format(
+                        sql.Identifier(UPLOAD_SESSIONS_TABLE)
+                    )
                 )
-            )
-            result["tables"][UPLOAD_SESSIONS_TABLE] = {"count": cur.fetchone()[0]}
+                row = cur.fetchone()
+                result["tables"][UPLOAD_SESSIONS_TABLE] = {"count": row[0] if row else 0, "exists": True}
+            except Exception as e:
+                result["tables"][UPLOAD_SESSIONS_TABLE] = {"count": 0, "exists": False, "error": str(e)}
+                result["healthy"] = False
             
             # 检查上传数据表
-            cur.execute(
-                sql.SQL("SELECT COUNT(*) FROM {}").format(
-                    sql.Identifier(UPLOAD_DATA_TABLE)
+            try:
+                cur.execute(
+                    sql.SQL("SELECT COUNT(*) FROM {}").format(
+                        sql.Identifier(UPLOAD_DATA_TABLE)
+                    )
                 )
-            )
-            result["tables"][UPLOAD_DATA_TABLE] = {"count": cur.fetchone()[0]}
+                row = cur.fetchone()
+                result["tables"][UPLOAD_DATA_TABLE] = {"count": row[0] if row else 0, "exists": True}
+            except Exception as e:
+                result["tables"][UPLOAD_DATA_TABLE] = {"count": 0, "exists": False, "error": str(e)}
+                result["healthy"] = False
             
             # 检查列映射配置表
-            cur.execute(
-                sql.SQL("SELECT COUNT(*) FROM {}").format(
-                    sql.Identifier(COLUMN_MAPPING_TABLE)
+            try:
+                cur.execute(
+                    sql.SQL("SELECT COUNT(*) FROM {}").format(
+                        sql.Identifier(COLUMN_MAPPING_TABLE)
+                    )
                 )
-            )
-            result["tables"][COLUMN_MAPPING_TABLE] = {"count": cur.fetchone()[0]}
+                row = cur.fetchone()
+                result["tables"][COLUMN_MAPPING_TABLE] = {"count": row[0] if row else 0, "exists": True}
+            except Exception as e:
+                result["tables"][COLUMN_MAPPING_TABLE] = {"count": 0, "exists": False, "error": str(e)}
+                result["healthy"] = False
             
             # 检查自定义模式表数量
-            cur.execute(
-                """
-                SELECT COUNT(*) FROM information_schema.tables
-                WHERE table_schema = 'public' AND table_name LIKE 'custom_mode_%'
-                """
-            )
-            result["tables"]["custom_modes"] = {"count": cur.fetchone()[0]}
+            try:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name LIKE 'custom_mode_%'
+                    """
+                )
+                row = cur.fetchone()
+                result["tables"]["custom_modes"] = {"count": row[0] if row else 0, "exists": True}
+            except Exception as e:
+                result["tables"]["custom_modes"] = {"count": 0, "exists": False, "error": str(e)}
             
+            # 更新消息
+            if result["healthy"]:
+                result["message"] = "数据库正常，所有表都已创建"
+            else:
+                missing_tables = [name for name, info in result["tables"].items() 
+                                  if not info.get("exists", True)]
+                result["message"] = f"缺少表: {', '.join(missing_tables)}"
+                
     except Exception as e:
         result["healthy"] = False
         result["message"] = f"数据库检查失败: {e}"
