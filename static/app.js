@@ -1402,13 +1402,29 @@
     }
 
     function render(data) {
+      console.log("=== render 函数开始 ===");
+      console.log("data keys:", Object.keys(data));
+      console.log("data.all_rows:", data.all_rows?.slice(0, 2));
+      console.log("data.columns:", data.columns);
+      console.log("data.chart_type_config:", data.chart_type_config);
+      console.log("data.display_name_config:", data.display_name_config);
+      
       const a = data.workload_analysis;
       latestAllRows = Array.isArray(data.all_rows) ? data.all_rows : data.preview_rows;
       latestColumns = Array.isArray(data.columns) ? data.columns : [];
       
+      console.log("latestAllRows count:", latestAllRows.length);
+      console.log("latestColumns count:", latestColumns.length);
+      
       // 获取图表类型配置和显示名称配置
       const chartTypeConfig = data.chart_type_config || {};
       const displayNameConfig = data.display_name_config || {};
+      
+      console.log("传递给 renderCustomCharts 的数据:");
+      console.log("- rows:", latestAllRows.length);
+      console.log("- columns:", latestColumns);
+      console.log("- chartTypeConfig:", chartTypeConfig);
+      console.log("- displayNameConfig:", displayNameConfig);
       
       // 检查是否有数据
       if (latestAllRows.length === 0 && latestColumns.length === 0) {
