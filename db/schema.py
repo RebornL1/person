@@ -28,6 +28,7 @@ def ensure_upload_tables_exist(conn) -> None:
     with conn.cursor() as cur:
         # ========== 1. 上传会话表 ==========
         # 记录每次上传的元信息
+        # 注意：JSONB 默认值使用双花括号 {{}} 转义，避免被 format() 解析为占位符
         cur.execute(
             sql.SQL("""
             CREATE TABLE IF NOT EXISTS {} (
@@ -37,14 +38,14 @@ def ensure_upload_tables_exist(conn) -> None:
                 filename TEXT DEFAULT '',
                 row_count BIGINT NOT NULL DEFAULT 0,
                 col_count BIGINT NOT NULL DEFAULT 0,
-                columns_json JSONB DEFAULT '{}',
+                columns_json JSONB DEFAULT '{{}}',
                 has_workload_analysis BOOLEAN DEFAULT FALSE,
                 has_analysis BOOLEAN DEFAULT TRUE,
                 sheet_name TEXT DEFAULT '',
                 selected_columns TEXT DEFAULT '',
-                display_names JSONB DEFAULT '{}',
-                column_types JSONB DEFAULT '{}',
-                chart_types JSONB DEFAULT '{}',
+                display_names JSONB DEFAULT '{{}}',
+                column_types JSONB DEFAULT '{{}}',
+                chart_types JSONB DEFAULT '{{}}',
                 notes TEXT DEFAULT '',
                 column_mapping_id BIGINT DEFAULT NULL,
                 config_name TEXT DEFAULT ''
@@ -60,7 +61,7 @@ def ensure_upload_tables_exist(conn) -> None:
                 id BIGSERIAL PRIMARY KEY,
                 session_id BIGINT NOT NULL DEFAULT 0,
                 row_index BIGINT NOT NULL DEFAULT 0,
-                row_data JSONB NOT NULL DEFAULT '{}'
+                row_data JSONB DEFAULT '{{}}'
             )
             """).format(sql.Identifier(UPLOAD_DATA_TABLE))
         )
