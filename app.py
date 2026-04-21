@@ -105,18 +105,15 @@ def _save_upload_to_db(
         # 使用批量插入优化（每批1000行）
         batch_size = 1000
         table_name = sql.Identifier(UPLOAD_DATA_TABLE)
-        insert_sql = sql.SQL("INSERT INTO {} (session_id, row_index, row_data) VALUES (%s, %s, %s)").format(table_name)
         
-        # 准备批量数据
+        # 准备批量数据并执行插入
         for batch_start in range(0, len(rows), batch_size):
             batch_end = min(batch_start + batch_size, len(rows))
-            batch_values = [
-                (session_id, idx, json.dumps(rows[idx]))
-                for idx in range(batch_start, batch_end)
-            ]
-            # 使用 execute_values 进行批量插入 (psycopg 3.x 正确导入方式)
-            import psycopg.extras
-            psycopg.extras.execute_values(cur, insert_sql, batch_values, template=None, page_size=1000)
+            for idx in range(batch_start, batch_end):
+                cur.execute(
+                    sql.SQL("INSERT INTO {} (session_id, row_index, row_data) VALUES (%s, %s, %s)").format(table_name),
+                    (session_id, idx, json.dumps(rows[idx]))
+                )
         
         conn.commit()
 
