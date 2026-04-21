@@ -100,7 +100,7 @@
     let historySection, uploadHistoryList, historyStatus, loadLatestBtn, refreshHistoryBtn;
     let startDateInput, endDateInput, applyDateFilterBtn, clearDateFilterBtn;
     let mappingSelect, newMappingBtn, mappingEditPanel, mappingNameInput;
-    let saveMappingBtn, cancelMappingBtn, savedMappingsList, mappingMessage, mappingMatchStatus, refreshMappingsBtn;
+    let saveMappingBtn, cancelMappingBtn, savedMappingsList, mappingMessage, mappingMatchStatus, refreshMappingsBtn, loadMappingBtn, mappingLoadStatus;
     let welcomeSection, loadSampleBtn, downloadTemplateBtn, loadLatestQuickBtn;
     // 配置名称输入
     let configNameInput;
@@ -407,6 +407,63 @@
       }
       return getDefaultAliases();
     }
+    
+    // 加载选中的列映射配置到导入弹窗
+    function loadSelectedMappingToImport() {
+      const selectedId = mappingSelect.value;
+      
+      if (!selectedId) {
+        if (mappingLoadStatus) mappingLoadStatus.textContent = "已选择默认配置";
+        return;
+      }
+      
+      const mapping = savedMappings.find(m => m.id === parseInt(selectedId, 10));
+      if (!mapping) {
+        if (mappingLoadStatus) mappingLoadStatus.textContent = "配置不存在";
+        return;
+      }
+      
+      // 如果有导入弹窗正在显示，应用配置到字段配置列表
+      if (pendingPreviewData && pendingPreviewData.sheets && pendingPreviewData.sheets.length > 0) {
+        const columnConfigListEl = document.getElementById("column-config-list");
+        if (columnConfigListEl) {
+          const aliases = mapping.aliases || getDefaultAliases();
+          
+          columnConfigListEl.querySelectorAll(".column-config-item").forEach(item => {
+            const colName = item.getAttribute("data-col-name");
+            const displayInput = item.querySelector("input[data-col-display]");
+            
+            if (displayInput) {
+              // 尝试匹配列名到标准字段，并设置显示名称
+              const matchedKey = findColumnKey(colName, aliases);
+              if (matchedKey) {
+                // 使用标准字段名称作为显示名称
+                const standardNames = {
+                  name: "姓名",
+                  oncall_open: "oncall未闭环",
+                  pending_ticket: "待处理工单",
+                  new_issue_yesterday: "昨日新增问题",
+                  governance_issue: "管控问题",
+                  kernel_issue: "内核问题",
+                  consult_issue: "咨询问题",
+                  escalation_help: "透传求助",
+                  issue_ticket_output: "问题单产出",
+                  requirement_ticket_output: "需求单产出",
+                  wiki_output: "wiki产出",
+                  analysis_report_output: "分析报告"
+                };
+                displayInput.value = standardNames[matchedKey] || colName;
+              }
+            }
+          });
+        }
+      }
+      
+      if (mappingLoadStatus) {
+        mappingLoadStatus.textContent = `已加载配置: ${mapping.name || selectedId}`;
+        mappingLoadStatus.style.color = "var(--good)";
+      }
+    }
 
     // 获取默认别名配置
     function getDefaultAliases() {
@@ -434,6 +491,20 @@
         for (let i = 0; i < columns.length; i++) {
           if (normalizedCols[i] === normalizedAlias || normalizedCols[i].includes(normalizedAlias)) {
             return columns[i];
+          }
+        }
+      }
+      return null;
+    }
+    
+    // 查找列名对应的字段键（反向匹配）
+    function findColumnKey(colName, aliases) {
+      const normalizedCol = normalizeColName(colName);
+      for (const [key, aliasList] of Object.entries(aliases)) {
+        for (const alias of aliasList) {
+          const normalizedAlias = normalizeColName(alias);
+          if (normalizedCol === normalizedAlias || normalizedCol.includes(normalizedAlias) || normalizedAlias.includes(normalizedCol)) {
+            return key;
           }
         }
       }
@@ -2026,6 +2097,8 @@
       mappingMessage = document.getElementById("mapping-message");
       mappingMatchStatus = document.getElementById("mapping-match-status");
       refreshMappingsBtn = document.getElementById("refresh-mappings-btn");
+      loadMappingBtn = document.getElementById("load-mapping-btn");
+      mappingLoadStatus = document.getElementById("mapping-load-status");
       welcomeSection = document.getElementById("welcome-section");
       loadSampleBtn = document.getElementById("load-sample-btn");
       downloadTemplateBtn = document.getElementById("download-template-btn");
@@ -2054,6 +2127,7 @@
       if (cancelMappingBtn) cancelMappingBtn.addEventListener("click", hideEditPanel);
       if (saveMappingBtn) saveMappingBtn.addEventListener("click", saveMappingConfig);
       if (refreshMappingsBtn) refreshMappingsBtn.addEventListener("click", loadColumnMappings);
+      if (loadMappingBtn) loadMappingBtn.addEventListener("click", loadSelectedMappingToImport);
       if (mappingSelect) mappingSelect.addEventListener("change", () => {
         currentMappingId = mappingSelect.value ? parseInt(mappingSelect.value, 10) : null;
         if (latestColumns.length > 0) {

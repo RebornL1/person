@@ -211,7 +211,7 @@
       <!-- 列映射配置 -->
       <section id="column-mapping-section" style="display:none">
         <h2>列映射配置</h2>
-        <p class="hint-text">当Excel列名与默认配置不同时，可创建自定义映射配置</p>
+        <p class="hint-text">当Excel列名与默认配置不同时，可创建自定义映射配置。选择配置后点击"加载"应用到导入弹窗。</p>
         <div class="mapping-config-section">
           <div class="mapping-header">
             <div style="display:flex;align-items:center;gap:0.5rem;">
@@ -219,6 +219,7 @@
               <select id="mapping-select" class="mapping-select">
                 <option value="">默认配置</option>
               </select>
+              <button type="button" class="btn" id="load-mapping-btn">加载</button>
             </div>
             <button type="button" class="btn" id="new-mapping-btn">新建</button>
           </div>
@@ -244,6 +245,7 @@
             </div>
           </div>
           <div id="mapping-match-status" class="mapping-status" style="display:none;"></div>
+          <div id="mapping-load-status" class="status-note"></div>
           <div style="margin-top:0.8rem;">
             <button type="button" class="btn" id="refresh-mappings-btn">刷新配置</button>
           </div>
@@ -295,6 +297,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-  <script src="/static/app.js?v=20260417e"></script>
+  <script src="/static/app.js?v=20260417f"></script>
 </body>
 </html>
