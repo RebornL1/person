@@ -1544,8 +1544,9 @@
         const displayName = displayNameConfig[col] || col;
         const canvasId = `custom-chart-${idx}`;
         
-        // 获取该列的数据
-        const isNumeric = rows.every(row => typeof row[col] === "number" || row[col] === "" || row[col] === null);
+        // 检查数据是否为数值型（宽松判断）
+        const numericValues = rows.filter(row => row[col] !== "" && row[col] !== null).map(row => parseFloat(row[col]));
+        const isNumeric = numericValues.length > 0 && numericValues.every(v => !isNaN(v));
         
         // 创建图表卡片
         const chartCard = document.createElement("div");
@@ -1553,10 +1554,17 @@
         chartCard.innerHTML = `<h3>${escapeHtml(displayName)}</h3><div class="chart-wrap"><canvas id="${canvasId}"></canvas></div>`;
         customChartsGrid.appendChild(chartCard);
         
-        // 如果是数值型数据，按人员统计
+        // 查找姓名列
+        const nameCol = columns.find(c => 
+          c.toLowerCase().includes("姓名") || 
+          c.toLowerCase().includes("名字") || 
+          c.toLowerCase() === "name" ||
+          c.includes("姓名")
+        );
+        
         if (isNumeric && rows.length > 0) {
-          // 假设有姓名列
-          const nameCol = columns.find(c => c.toLowerCase().includes("姓名") || c.toLowerCase().includes("名字") || c.toLowerCase() === "name");
+          // 数值型数据图表
+          let labels, data;
           
           if (nameCol) {
             // 按姓名分组统计
@@ -1567,118 +1575,121 @@
               if (!dataByPerson[name]) dataByPerson[name] = 0;
               dataByPerson[name] += value;
             });
-            
-            const labels = Object.keys(dataByPerson);
-            const data = Object.values(dataByPerson);
-            
-            // 根据图表类型渲染
-            let chartConfig;
-            if (chartType === "pie") {
-              chartConfig = {
-                type: "pie",
-                data: {
-                  labels,
-                  datasets: [{
-                    data,
-                    backgroundColor: themeColors.chartColors.primary,
-                    borderColor: themeColors.border,
-                  }]
-                },
-                options: {
-                  responsive: true,
-                  plugins: {
-                    legend: { position: "right" }
-                  }
-                }
-              };
-            } else if (chartType === "line") {
-              chartConfig = {
-                type: "line",
-                data: {
-                  labels,
-                  datasets: [{
-                    label: displayName,
-                    data,
-                    borderColor: themeColors.chartColors.primary,
-                    backgroundColor: themeColors.chartColors.primary + "40",
-                    fill: true,
-                  }]
-                },
-                options: makeCommonOptions(false)
-              };
-            } else {
-              // 默认柱状图
-              chartConfig = {
-                type: "bar",
-                data: {
-                  labels,
-                  datasets: [{
-                    label: displayName,
-                    data,
-                    backgroundColor: themeColors.chartColors.primary,
-                  }]
-                },
-                options: makeCommonOptions(false)
-              };
-            }
-            
-            try {
-              if (typeof Chart !== "undefined") {
-                charts[`custom_${idx}`] = new Chart(document.getElementById(canvasId), chartConfig);
-              }
-            } catch (e) {
-              console.error(`渲染图表 ${displayName} 失败:`, e);
-            }
+            labels = Object.keys(dataByPerson);
+            data = Object.values(dataByPerson);
           } else {
-            // 没有姓名列，直接展示数值分布
-            const numericData = rows.map(row => parseFloat(row[col]) || 0);
-            
-            const chartConfig = {
-              type: chartType === "pie" ? "pie" : chartType === "line" ? "line" : "bar",
+            // 没有姓名列，使用行号作为标签
+            labels = rows.map((row, i) => `${i + 1}`);
+            data = rows.map(row => parseFloat(row[col]) || 0);
+          }
+          
+          // 根据图表类型创建配置
+          let chartConfig;
+          const chartColors = [
+            themeColors.chartColors.primary,
+            themeColors.chartColors.green,
+            themeColors.chartColors.purple,
+            themeColors.chartColors.teal,
+            themeColors.chartColors.pink,
+            themeColors.chartColors.orange,
+            themeColors.chartColors.sky,
+            themeColors.chartColors.amber,
+          ];
+          
+          if (chartType === "pie") {
+            chartConfig = {
+              type: "pie",
               data: {
-                labels: rows.map((row, i) => `行${i + 1}`),
+                labels,
                 datasets: [{
-                  label: displayName,
-                  data: numericData,
-                  backgroundColor: themeColors.chartColors.primary,
-                  borderColor: chartType === "line" || chartType === "pie" ? themeColors.chartColors.primary : undefined,
-                  fill: chartType === "line",
+                  data,
+                  backgroundColor: labels.map((_, i) => chartColors[i % chartColors.length]),
                 }]
               },
-              options: makeCommonOptions(chartType === "pie")
-            };
-            
-            try {
-              if (typeof Chart !== "undefined") {
-                charts[`custom_${idx}`] = new Chart(document.getElementById(canvasId), chartConfig);
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { position: "right", labels: { color: themeColors.text } }
+                }
               }
-            } catch (e) {
-              console.error(`渲染图表 ${displayName} 失败:`, e);
+            };
+          } else if (chartType === "line") {
+            chartConfig = {
+              type: "line",
+              data: {
+                labels,
+                datasets: [{
+                  label: displayName,
+                  data,
+                  borderColor: themeColors.chartColors.primary,
+                  backgroundColor: themeColors.chartColors.primary + "40",
+                  fill: true,
+                }]
+              },
+              options: makeCommonOptions(false)
+            };
+          } else {
+            // 默认柱状图
+            chartConfig = {
+              type: "bar",
+              data: {
+                labels,
+                datasets: [{
+                  label: displayName,
+                  data,
+                  backgroundColor: themeColors.chartColors.primary,
+                }]
+              },
+              options: makeCommonOptions(false)
+            };
+          }
+          
+          try {
+            if (typeof Chart !== "undefined") {
+              charts[`custom_${idx}`] = new Chart(document.getElementById(canvasId), chartConfig);
             }
+          } catch (e) {
+            console.error(`渲染图表 ${displayName} 失败:`, e);
           }
         } else {
           // 文本类型数据，统计分布
           const valueCounts = {};
           rows.forEach(row => {
-            const value = row[col] || "空";
+            const value = String(row[col] || "").trim() || "空";
             if (!valueCounts[value]) valueCounts[value] = 0;
             valueCounts[value]++;
           });
           
-          const labels = Object.keys(valueCounts);
-          const data = Object.values(valueCounts);
+          const labels = Object.keys(valueCounts).slice(0, 10); // 最多显示10个分类
+          const data = labels.map(l => valueCounts[l]);
           
           const chartConfig = {
-            type: chartType === "pie" ? "pie" : chartType === "line" ? "line" : "bar",
+            type: chartType === "pie" ? "pie" : "bar",
             data: {
               labels,
               datasets: [{
-                label: displayName,
+                label: displayName + " (数量)",
                 data,
-                backgroundColor: themeColors.chartColors.primary,
+                backgroundColor: labels.map((_, i) => [
+                  themeColors.chartColors.primary,
+                  themeColors.chartColors.green,
+                  themeColors.chartColors.purple,
+                  themeColors.chartColors.teal,
+                  themeColors.chartColors.pink,
+                  themeColors.chartColors.orange,
+                  themeColors.chartColors.sky,
+                  themeColors.chartColors.amber,
+                ][i % 8]),
               }]
             },
-            options: makeCommonOptions(chartType === "pie")
+            options: chartType === "pie" ? {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { position: "right", labels: { color: themeColors.text } }
+              }
+            } : makeCommonOptions(false)
           };
           
           try {
