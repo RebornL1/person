@@ -1063,6 +1063,55 @@
       }
     }
 
+    // 加载自定义模式数据
+    async function loadCustomModeData(tableName, modeName) {
+      if (!tableName) return;
+      clearError();
+      result.style.display = "none";
+      loading.classList.add("show");
+      loading.textContent = `正在加载模式 "${modeName}" 的数据...`;
+      try {
+        const res = await fetch(`/api/custom-mode/load/${encodeURIComponent(tableName)}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showError(data.detail || `加载失败 (${res.status})`);
+          return;
+        }
+        
+        if (!data.rows || data.rows.length === 0) {
+          showError("该模式没有数据");
+          return;
+        }
+        
+        // 构建渲染数据
+        const renderData = {
+          columns: data.columns,
+          preview_rows: data.preview_rows || data.rows.slice(0, 20),
+          all_rows: data.rows,
+          shape: data.shape || { rows: data.row_count, cols: data.columns.length },
+          dtypes: data.dtypes || {},
+          missing_counts: {},
+          preview_truncated: data.row_count > 20,
+          all_rows_truncated: data.row_count > 500,
+          workload_analysis: null,  // 自定义模式不进行工作量分析
+          chart_type_config: {},
+          display_name_config: {},
+        };
+        
+        clearError();
+        render(renderData);
+        result.style.display = "block";
+        hideWelcome();
+        customSaveStatus.textContent = `已加载模式: ${modeName} (${data.row_count} 行)`;
+        historyStatus.textContent = `已加载自定义模式: ${modeName}`;
+      } catch (e) {
+        showError("网络错误，加载自定义模式失败。");
+      } finally {
+        loading.classList.remove("show");
+        loading.textContent = "正在解析并计算工作量模型...";
+      }
+    }
+
     async function loadCustomModeList() {
       customModeList.innerHTML = "<div class='mode-item'><small>正在加载模式列表...</small></div>";
       try {
@@ -1086,11 +1135,18 @@
                   <div><b>${escapeHtml(it.mode_name || "-")}</b> <small>(${escapeHtml(it.table_name || "-")})</small></div>
                   <small>行数: ${fmt(it.row_count)} · 最近保存: ${escapeHtml(saved)}</small>
                 </div>
-                <button type="button" class="btn" data-del-mode="${escapeHtml(it.mode_name || "")}">删除</button>
+                <div style="display:flex;gap:0.4rem;">
+                  <button type="button" class="btn" style="background:var(--accent-soft);border-color:var(--accent);" data-load-mode-table="${escapeHtml(it.table_name || "")}" data-load-mode-name="${escapeHtml(it.mode_name || "")}">加载</button>
+                  <button type="button" class="btn" style="background:var(--err-bg);border-color:var(--danger);" data-del-mode="${escapeHtml(it.mode_name || "")}">删除</button>
+                </div>
               </div>
             `;
           })
           .join("");
+        // 绑定加载按钮事件
+        customModeList.querySelectorAll("button[data-load-mode-table]").forEach((btn) => {
+          btn.addEventListener("click", () => loadCustomModeData(btn.getAttribute("data-load-mode-table"), btn.getAttribute("data-load-mode-name")));
+        });
         customModeList.querySelectorAll("button[data-del-mode]").forEach((btn) => {
           btn.addEventListener("click", () => deleteCustomMode(btn.getAttribute("data-del-mode")));
         });

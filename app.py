@@ -1089,6 +1089,80 @@ async def list_custom_modes() -> JSONResponse:
     return JSONResponse(content={"ok": True, "items": items})
 
 
+@app.get("/api/custom-mode/load/{table_name}")
+async def load_custom_mode_data(table_name: str) -> JSONResponse:
+    """加载指定自定义模式表的数据。"""
+    dsn = get_pg_dsn()
+    try:
+        with connect(dsn) as conn:
+            with conn.cursor() as cur:
+                # 获取表结构
+                cur.execute(
+                    """
+                    SELECT column_name, data_type 
+                    FROM information_schema.columns 
+                    WHERE table_name = %s AND table_schema = 'public'
+                    ORDER BY ordinal_position;
+                    """,
+                    (table_name,)
+                )
+                columns_info = cur.fetchall()
+                columns = [col[0] for col in columns_info if col[0] not in ('id', 'mode_name', 'created_at')]
+                
+                # 获取数据
+                cur.execute(
+                    sql.SQL("SELECT {} FROM {} ORDER BY created_at DESC LIMIT 500").format(
+                        sql.SQL(", ").join(sql.Identifier(c) for c in columns),
+                        sql.Identifier(table_name)
+                    )
+                )
+                rows = cur.fetchall()
+                
+                # 转换为字典格式
+                data_rows = []
+                for row in rows:
+                    row_dict = {}
+                    for i, col in enumerate(columns):
+                        value = row[i]
+                        if value is not None:
+                            row_dict[col] = value
+                        else:
+                            row_dict[col] = ""
+                    data_rows.append(row_dict)
+                
+                logger.info(f"加载自定义模式成功: {table_name}, {len(data_rows)} 行")
+                
+                # 构建预览payload
+                import pandas as pd
+                if data_rows:
+                    df = pd.DataFrame(data_rows)
+                    payload = {
+                        "ok": True,
+                        "table_name": table_name,
+                        "columns": columns,
+                        "rows": data_rows,
+                        "row_count": len(data_rows),
+                        "shape": {"rows": len(data_rows), "cols": len(columns)},
+                        "preview_rows": data_rows[:20],
+                        "dtypes": {col: str(df.dtypes.get(col, "object")) for col in columns},
+                        "workload_analysis": None,  # 自定义模式不进行工作量分析
+                    }
+                else:
+                    payload = {
+                        "ok": True,
+                        "table_name": table_name,
+                        "columns": columns,
+                        "rows": [],
+                        "row_count": 0,
+                    }
+                    
+    except Exception as e:
+        logger.error(f"加载自定义模式失败: {e}")
+        raise HTTPException(status_code=500, detail=f"加载自定义模式数据失败：{e!s}") from e
+
+    return JSONResponse(content=payload)
+
+
 @app.post("/api/custom-mode/delete")
 async def delete_custom_mode(req: DeleteCustomModeRequest) -> JSONResponse:
     """删除指定模式名的所有相关表（匹配 custom_mode_{slugified_name}_* 格式）。"""
