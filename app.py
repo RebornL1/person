@@ -6,7 +6,9 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import os
+import re
 from datetime import datetime, date as date_type
 from pathlib import Path
 from typing import Any
@@ -36,6 +38,21 @@ from utils import (
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
+
+# 配置日志系统
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+    ]
+)
+logger = logging.getLogger("excel_analyzer")
+
+# 文件上传限制配置
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_FILE_SIZE_MB = 50
+ALLOWED_EXTENSIONS = {".xlsx", ".xls"}
 
 app = FastAPI(title="Excel 分析")
 
@@ -84,8 +101,8 @@ def _ensure_upload_tables_exist(conn) -> None:
             cur.execute(sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS column_types JSONB").format(sql.Identifier(UPLOAD_SESSIONS_TABLE)))
             cur.execute(sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS chart_types JSONB").format(sql.Identifier(UPLOAD_SESSIONS_TABLE)))
             cur.execute(sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS config_name TEXT").format(sql.Identifier(UPLOAD_SESSIONS_TABLE)))
-        except Exception:
-            pass  # 字段已存在或其他错误，忽略
+        except Exception as e:
+            logger.warning(f"添加新字段时出错（可能已存在）: {e}")
         
         # 上传数据表：存储每次上传的具体数据行
         # 注意：移除 REFERENCES 约束，改用简单 BIGINT，兼容更多数据库环境
@@ -181,7 +198,7 @@ def _save_upload_to_db(
     chart_types: dict[str, str] | None = None,
     config_name: str | None = None,
 ) -> int:
-    """保存上传数据到数据库，返回 session_id。"""
+    """保存上传数据到数据库，返回 session_id。使用批量插入优化性能。"""
     today = datetime.now().date()
     row_count = len(rows)
     col_count = len(columns)
@@ -198,13 +215,22 @@ def _save_upload_to_db(
         )
         session_id = cur.fetchone()[0]
 
-        # 批量插入数据行 - 使用逐行插入避免executemany的占位符问题
+        # 使用批量插入优化（每批1000行）
+        batch_size = 1000
         table_name = sql.Identifier(UPLOAD_DATA_TABLE)
-        for idx, row in enumerate(rows):
-            cur.execute(
-                sql.SQL("INSERT INTO {} (session_id, row_index, row_data) VALUES (%s, %s, %s)").format(table_name),
-                (session_id, idx, json.dumps(row))
-            )
+        insert_sql = sql.SQL("INSERT INTO {} (session_id, row_index, row_data) VALUES (%s, %s, %s)").format(table_name)
+        
+        # 准备批量数据
+        for batch_start in range(0, len(rows), batch_size):
+            batch_end = min(batch_start + batch_size, len(rows))
+            batch_values = [
+                (session_id, idx, json.dumps(rows[idx]))
+                for idx in range(batch_start, batch_end)
+            ]
+            # 使用 execute_values 进行批量插入
+            from psycopg import extras
+            extras.execute_values(cur, insert_sql, batch_values, template=None, page_size=1000)
+        
         conn.commit()
 
     return session_id
@@ -385,15 +411,26 @@ def _dataframe_to_payload(
 @app.post("/api/upload/preview")
 async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
     """预览Excel文件，返回所有sheet的信息。"""
+    # 文件名安全检查
     name = (file.filename or "").lower()
     if not name.endswith((".xlsx", ".xls")):
         raise HTTPException(
             status_code=400,
             detail="请上传 .xlsx 或 .xls 文件",
         )
+    
+    # 文件名安全处理（防止路径遍历）
+    safe_filename = Path(file.filename or "unknown.xlsx").name
+    
+    # 检查文件大小
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="文件为空")
+    if len(raw) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件大小超过限制（最大 {MAX_FILE_SIZE_MB}MB）",
+        )
 
     try:
         bio = io.BytesIO(raw)
@@ -434,7 +471,9 @@ async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
                 "preview_rows": preview_rows,
                 "has_workload_analysis": _build_workload_analysis(df) is not None,
             })
+        logger.info(f"预览文件成功: {safe_filename}, {len(sheets_info)} 个sheet")
     except Exception as e:
+        logger.error(f"解析 Excel 失败: {e}")
         raise HTTPException(
             status_code=422,
             detail=f"无法解析 Excel：{e!s}",
@@ -442,7 +481,7 @@ async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
 
     return JSONResponse(content={
         "ok": True,
-        "filename": file.filename,
+        "filename": safe_filename,
         "sheets": sheets_info,
         "sheet_count": len(sheets_info),
     })
@@ -459,15 +498,26 @@ async def upload_excel(
     chart_types: str | None = Query(None, description="图表类型，格式 col:chartType"),
     config_name: str | None = Query(None, description="配置名称，用于后续加载"),
 ) -> JSONResponse:
+    # 文件名安全检查
     name = (file.filename or "").lower()
     if not name.endswith((".xlsx", ".xls")):
         raise HTTPException(
             status_code=400,
             detail="请上传 .xlsx 或 .xls 文件",
         )
+    
+    # 文件名安全处理
+    safe_filename = Path(file.filename or "unknown.xlsx").name
+    
+    # 检查文件大小
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="文件为空")
+    if len(raw) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件大小超过限制（最大 {MAX_FILE_SIZE_MB}MB）",
+        )
 
     try:
         bio = io.BytesIO(raw)
@@ -527,8 +577,8 @@ async def upload_excel(
                         }
                         column_aliases = _get_column_aliases_from_config(mapping_config)
                         mapping_name = mapping_row[1]
-        except Exception:
-            pass  # 配置加载失败时使用默认配置
+        except Exception as e:
+            logger.warning(f"列映射配置加载失败，使用默认配置: {e}")
     
     if column_aliases is None:
         column_aliases = DEFAULT_COLUMN_ALIASES.copy()
@@ -584,14 +634,15 @@ async def upload_excel(
                             column_type_config[col.strip()] = col_type.strip()
                 
                 session_id = _save_upload_to_db(
-                    conn, file.filename or "unknown.xlsx", all_rows, columns, has_workload,
+                    conn, safe_filename, all_rows, columns, has_workload,
                     column_mapping_id, sheet_name, selected_columns,
                     display_name_config, column_type_config, chart_type_config, config_name
                 )
                 payload["saved_to_db"] = True
                 payload["session_id"] = session_id
         except Exception as e:
-            # 入库失败不影响返回数据，只记录警告
+            # 入库失败不影响返回数据，记录警告日志
+            logger.warning(f"入库失败: {e}")
             payload["saved_to_db"] = False
             payload["db_error"] = str(e)
     else:
@@ -880,6 +931,14 @@ async def delete_upload_session(session_id: int) -> JSONResponse:
     try:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
+                # 先删除关联的数据行
+                cur.execute(
+                    sql.SQL("DELETE FROM {} WHERE session_id = %s").format(
+                        sql.Identifier(UPLOAD_DATA_TABLE)
+                    ),
+                    (session_id,)
+                )
+                # 再删除会话记录
                 cur.execute(
                     sql.SQL("DELETE FROM {} WHERE id = %s RETURNING id").format(
                         sql.Identifier(UPLOAD_SESSIONS_TABLE)
@@ -916,8 +975,19 @@ async def save_custom_mode(req: SaveCustomModeRequest) -> JSONResponse:
     # 表名添加时间戳后缀，格式：custom_mode_{slugified_name}_{YYYYMMDD_HHMMSS}
     timestamp_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
     table_name = f"custom_mode_{slugify_mode_name(req.mode_name)}_{timestamp_suffix}"
+    
+    # 对列名进行安全处理，转换为安全的 SQL 列名
+    def safe_column_name(col: str) -> str:
+        # 移除特殊字符，保留中文、字母、数字、下划线
+        safe_name = re.sub(r'[^\w\u4e00-\u9fff]', '_', col.strip())
+        # 如果首字符不是字母或下划线，添加前缀
+        if safe_name and not (safe_name[0].isalpha() or safe_name[0] == '_' or '\u4e00' <= safe_name[0] <= '\u9fff'):
+            safe_name = 'col_' + safe_name
+        return safe_name or 'col_unknown'
+    
+    safe_column_mapping = {col: safe_column_name(col) for col in selected_columns}
     column_types = {
-        col: infer_sql_type([row.get(col) for row in req.rows])
+        safe_column_mapping[col]: infer_sql_type([row.get(col) for row in req.rows])
         for col in selected_columns
     }
 
@@ -935,10 +1005,11 @@ async def save_custom_mode(req: SaveCustomModeRequest) -> JSONResponse:
                     sql.SQL("created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"),
                 ]
                 for col in selected_columns:
+                    safe_col = safe_column_mapping[col]
                     create_cols.append(
                         sql.SQL("{} {}").format(
-                            sql.Identifier(col),
-                            sql.SQL(column_types[col]),
+                            sql.Identifier(safe_col),
+                            sql.SQL(column_types[safe_col]),
                         )
                     )
                 create_stmt = sql.SQL("CREATE TABLE IF NOT EXISTS {} ({})").format(
@@ -947,17 +1018,19 @@ async def save_custom_mode(req: SaveCustomModeRequest) -> JSONResponse:
                 )
                 cur.execute(create_stmt)
 
-                insert_cols = ["mode_name", *selected_columns]
+                # 插入数据时使用安全的列名
+                insert_safe_cols = ["mode_name"] + [safe_column_mapping[col] for col in selected_columns]
                 insert_stmt = sql.SQL("INSERT INTO {} ({}) VALUES ({})").format(
                     sql.Identifier(table_name),
-                    sql.SQL(", ").join(sql.Identifier(c) for c in insert_cols),
-                    sql.SQL(", ").join(sql.Placeholder() for _ in insert_cols),
+                    sql.SQL(", ").join(sql.Identifier(c) for c in insert_safe_cols),
+                    sql.SQL(", ").join(sql.Placeholder() for _ in insert_safe_cols),
                 )
                 # 使用逐行插入替代executemany，避免%符号导致的问题
                 for row in req.rows:
                     row_values = [req.mode_name]
                     for col in selected_columns:
-                        row_values.append(normalize_cell_for_insert(row.get(col), column_types[col]))
+                        safe_col = safe_column_mapping[col]
+                        row_values.append(normalize_cell_for_insert(row.get(col), column_types[safe_col]))
                     cur.execute(insert_stmt, tuple(row_values))
                 conn.commit()
     except Exception as e:
@@ -969,7 +1042,7 @@ async def save_custom_mode(req: SaveCustomModeRequest) -> JSONResponse:
             "table_name": table_name,
             "row_count": len(req.rows),
             "selected_columns": selected_columns,
-            "column_types": column_types,
+            "column_types": {col: column_types[safe_column_mapping[col]] for col in selected_columns},
         }
     )
 
@@ -1018,19 +1091,47 @@ async def list_custom_modes() -> JSONResponse:
 
 @app.post("/api/custom-mode/delete")
 async def delete_custom_mode(req: DeleteCustomModeRequest) -> JSONResponse:
+    """删除指定模式名的所有相关表（匹配 custom_mode_{slugified_name}_* 格式）。"""
     dsn = get_pg_dsn()
-    table_name = f"custom_mode_{slugify_mode_name(req.mode_name)}"
+    slug = slugify_mode_name(req.mode_name)
+    table_prefix = f"custom_mode_{slug}"
+    
     try:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
+                # 先查找匹配的所有表
                 cur.execute(
-                    sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(table_name))
+                    """
+                    SELECT table_name FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name LIKE %s
+                    """,
+                    (table_prefix + "_%",)
                 )
+                matching_tables = [r[0] for r in cur.fetchall()]
+                
+                if not matching_tables:
+                    raise HTTPException(status_code=404, detail=f"未找到模式 '{req.mode_name}' 对应的表")
+                
+                # 删除所有匹配的表
+                deleted_tables = []
+                for table_name in matching_tables:
+                    cur.execute(
+                        sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(table_name))
+                    )
+                    deleted_tables.append(table_name)
+                
                 conn.commit()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除模式表失败：{e!s}") from e
 
-    return JSONResponse(content={"ok": True, "table_name": table_name, "mode_name": req.mode_name})
+    return JSONResponse(content={
+        "ok": True, 
+        "deleted_tables": deleted_tables, 
+        "mode_name": req.mode_name,
+        "deleted_count": len(deleted_tables)
+    })
 
 
 # ========== 列映射配置API ==========

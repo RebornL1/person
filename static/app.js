@@ -1043,7 +1043,7 @@
 
     async function deleteCustomMode(modeName) {
       if (!modeName) return;
-      const sure = window.confirm(`确认删除模式 "${modeName}" 对应的数据表吗？`);
+      const sure = window.confirm(`确认删除模式 "${modeName}" 对应的所有数据表吗？`);
       if (!sure) return;
       try {
         const res = await fetch("/api/custom-mode/delete", {
@@ -1056,7 +1056,7 @@
           customSaveStatus.textContent = data.detail || "删除失败。";
           return;
         }
-        customSaveStatus.textContent = `已删除模式：${modeName}`;
+        customSaveStatus.textContent = `已删除模式：${modeName}（共 ${data.deleted_count || 1} 个表）`;
         await loadCustomModeList();
       } catch (e) {
         customSaveStatus.textContent = "网络异常，删除失败。";

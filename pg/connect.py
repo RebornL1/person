@@ -31,7 +31,7 @@ def main():
     print("-" * 50)
     
     try:
-        from psycopg import connect
+        from psycopg import connect, sql
         
         with connect(dsn) as conn:
             with conn.cursor() as cur:
@@ -64,7 +64,10 @@ def main():
                 if tables:
                     print(f"自定义模式表 ({len(tables)} 个):")
                     for t in tables:
-                        cur.execute(f'SELECT COUNT(*) FROM "{t[0]}";')
+                        # 使用 sql.Identifier 防止 SQL 注入
+                        cur.execute(
+                            sql.SQL("SELECT COUNT(*) FROM {}").format(sql.Identifier(t[0]))
+                        )
                         count = cur.fetchone()[0]
                         print(f"  - {t[0]} ({count} 行)")
                 else:
