@@ -953,13 +953,12 @@ async def save_custom_mode(req: SaveCustomModeRequest) -> JSONResponse:
                     sql.SQL(", ").join(sql.Identifier(c) for c in insert_cols),
                     sql.SQL(", ").join(sql.Placeholder() for _ in insert_cols),
                 )
-                values_batch = []
+                # 使用逐行插入替代executemany，避免%符号导致的问题
                 for row in req.rows:
                     row_values = [req.mode_name]
                     for col in selected_columns:
                         row_values.append(normalize_cell_for_insert(row.get(col), column_types[col]))
-                    values_batch.append(tuple(row_values))
-                cur.executemany(insert_stmt, values_batch)
+                    cur.execute(insert_stmt, tuple(row_values))
                 conn.commit()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"写入 PostgreSQL 失败：{e!s}") from e
