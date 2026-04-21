@@ -33,7 +33,7 @@ from utils import (
     UPLOAD_SESSIONS_TABLE, UPLOAD_DATA_TABLE, COLUMN_MAPPING_TABLE,
     normalize_col_name, find_col, to_float, parse_json_value,
     slugify_mode_name, infer_sql_type, normalize_cell_for_insert,
-    dataframe_to_preview,
+    dataframe_to_preview, safe_cell_value,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -326,6 +326,12 @@ async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
         sheets_info = []
         for sheet_name in sheet_names:
             df = pd.read_excel(xls, sheet_name=sheet_name)
+            
+            # 应用 safe_cell_value 处理所有单元格，兼容空值和公式错误
+            for col in df.columns:
+                df[col] = df[col].apply(safe_cell_value)
+            
+            # 替换 NaN 为空字符串
             df = df.fillna("")
             
             # 获取列信息
@@ -469,6 +475,11 @@ async def upload_excel(
         mapping_name = "默认配置"
 
     payload = _dataframe_to_payload(df, column_aliases)
+    
+    # 应用 safe_cell_value 处理所有单元格，兼容空值和公式错误
+    for col in df.columns:
+        df[col] = df[col].apply(safe_cell_value)
+    
     all_rows = json.loads(df.fillna("").to_json(orient="records", force_ascii=False))
     if len(all_rows) > MAX_SAVE_ROWS:
         all_rows = all_rows[:MAX_SAVE_ROWS]

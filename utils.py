@@ -41,6 +41,51 @@ def to_float(value: Any) -> float:
         return 0.0
 
 
+def safe_cell_value(value: Any) -> Any:
+    """
+    安全处理单元格值，兼容：
+    1. 空值（None, NaN, 空字符串） -> 返回空字符串或0
+    2. 公式错误（pandas读取公式时可能得到错误标记） -> 返回错误提示
+    3. 正常值 -> 返回原始值
+    """
+    # 处理 None
+    if value is None:
+        return ""
+    
+    # 处理 pandas NaN
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    
+    # 处理字符串类型
+    if isinstance(value, str):
+        s = value.strip()
+        if s == "":
+            return ""
+        # 检查是否是公式错误标记
+        if s.startswith("#") and any(err in s.upper() for err in ["N/A", "REF", "VALUE", "DIV", "NUM", "NAME", "NULL"]):
+            return s  # 保持公式错误标记可见
+        return s
+    
+    # 处理数值类型
+    if isinstance(value, (int, float)):
+        # 处理特殊浮点值
+        if isinstance(value, float):
+            try:
+                if value == float('inf') or value == float('-inf'):
+                    return "∞"
+                if pd.isna(value):  # 再次检查 NaN
+                    return ""
+            except (TypeError, ValueError):
+                pass
+        return value
+    
+    # 处理其他类型（如 datetime）
+    return str(value)
+
+
 def parse_json_value(value: Any) -> Any:
     """安全解析 JSON 值，兼容已解析和未解析的情况"""
     if value is None:
@@ -91,8 +136,14 @@ def normalize_cell_for_insert(value: Any, sql_type: str) -> Any:
 
 
 def dataframe_to_preview(df: pd.DataFrame, max_rows: int = MAX_PREVIEW_ROWS) -> dict[str, Any]:
-    """将DataFrame转换为预览数据"""
+    """将DataFrame转换为预览数据，兼容空单元格和公式错误"""
+    # 替换NaN为空字符串
     df = df.fillna("")
+    
+    # 处理公式错误标记（Excel读取时可能保留的错误值）
+    for col in df.columns:
+        df[col] = df[col].apply(safe_cell_value)
+    
     preview = df.head(max_rows)
     rows = json.loads(preview.to_json(orient="records", force_ascii=False))
     
