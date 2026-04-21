@@ -1572,37 +1572,34 @@
       console.log("columns order:", columns);
       
       if (chartColumns.length === 0) {
-        console.warn("没有需要渲染图表的列");
-        const noChartMsg = document.createElement("div");
-        noChartMsg.className = "chart-card";
-        noChartMsg.innerHTML = "<h3>暂无图表数据</h3><p>请在上传时选择图表类型配置</p>";
-        customChartsGrid.appendChild(noChartMsg);
-        return;
+        console.warn("没有需要渲染图表的列，跳过图表渲染");
+        // 不要return，继续渲染表格
       }
       
-      customChartsSection.style.display = "block";
-      const themeColors = getThemeColors();
-      
-      console.log("开始渲染图表，共", chartColumns.length, "个图表");
-      
-      // 渲染图表类型的列
-      chartColumns.forEach((col, idx) => {
-        console.log(`渲染第 ${idx} 个图表: 列名="${col}", 图表类型="${chartTypeConfig[col]}"`);
-        const chartType = chartTypeConfig[col] || "bar";
-        const displayName = displayNameConfig[col] || col;
-        const canvasId = `custom-chart-${idx}`;
+      if (chartColumns.length > 0) {
+        customChartsSection.style.display = "block";
+        const themeColors = getThemeColors();
         
-        // 检查数据是否为数值型（宽松判断）
-        const numericValues = rows.filter(row => row[col] !== "" && row[col] !== null).map(row => parseFloat(row[col]));
-        const isNumeric = numericValues.length > 0 && numericValues.every(v => !isNaN(v));
+        console.log("开始渲染图表，共", chartColumns.length, "个图表");
         
-        console.log(`列 ${col} isNumeric=${isNumeric}, numericValues count=${numericValues.length}`);
-        
-        // 创建图表卡片
-        const chartCard = document.createElement("div");
-        chartCard.className = "chart-card";
-        chartCard.innerHTML = `<h3>${escapeHtml(displayName)}</h3><div class="chart-wrap"><canvas id="${canvasId}"></canvas></div>`;
-        customChartsGrid.appendChild(chartCard);
+        // 渲染图表类型的列
+        chartColumns.forEach((col, idx) => {
+          console.log(`渲染第 ${idx} 个图表: 列名="${col}", 图表类型="${chartTypeConfig[col]}"`);
+          const chartType = chartTypeConfig[col] || "bar";
+          const displayName = displayNameConfig[col] || col;
+          const canvasId = `custom-chart-${idx}`;
+          
+          // 检查数据是否为数值型（宽松判断）
+          const numericValues = rows.filter(row => row[col] !== "" && row[col] !== null).map(row => parseFloat(row[col]));
+          const isNumeric = numericValues.length > 0 && numericValues.every(v => !isNaN(v));
+          
+          console.log(`列 ${col} isNumeric=${isNumeric}, numericValues count=${numericValues.length}`);
+          
+          // 创建图表卡片
+          const chartCard = document.createElement("div");
+          chartCard.className = "chart-card";
+          chartCard.innerHTML = `<h3>${escapeHtml(displayName)}</h3><div class="chart-wrap"><canvas id="${canvasId}"></canvas></div>`;
+          customChartsGrid.appendChild(chartCard);
         
         // 查找姓名列
         const nameCol = columns.find(c => 
@@ -1736,9 +1733,10 @@
             console.error(`渲染图表 ${displayName} 失败:`, e);
           }
         }, 50);
-      });
-      
-      console.log("图表渲染完成，共创建", Object.keys(charts).filter(k => k.startsWith('custom_')).length, "个自定义图表");
+        });
+        
+        console.log("图表渲染完成，共创建", Object.keys(charts).filter(k => k.startsWith('custom_')).length, "个自定义图表");
+      } // end if (chartColumns.length > 0)
       
       // 渲染表格类型的列
       if (tableColumns.length > 0) {
