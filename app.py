@@ -757,10 +757,11 @@ async def get_upload_session(session_id: int) -> JSONResponse:
     try:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
-                # 获取会话信息
+                # 获取会话信息（包含图表配置等完整字段）
                 cur.execute(
                     sql.SQL("""
-                    SELECT id, upload_date, upload_time, filename, row_count, col_count, columns_json, has_workload_analysis
+                    SELECT id, upload_date, upload_time, filename, row_count, col_count, columns_json, has_workload_analysis,
+                           sheet_name, selected_columns, display_names, column_types, chart_types, config_name
                     FROM {}
                     WHERE id = %s
                     """).format(sql.Identifier(UPLOAD_SESSIONS_TABLE)),
@@ -771,6 +772,13 @@ async def get_upload_session(session_id: int) -> JSONResponse:
                     raise HTTPException(status_code=404, detail="会话不存在")
 
                 columns = parse_json_value(session[6]) or []
+                # 解析图表配置字段（索引: sheet_name=8, selected_columns=9, display_names=10, column_types=11, chart_types=12, config_name=13）
+                sheet_name = session[8] or ""
+                selected_columns = session[9] or ""
+                display_names_json = parse_json_value(session[10]) or {}
+                column_types_json = parse_json_value(session[11]) or {}
+                chart_types_json = parse_json_value(session[12]) or {}
+                config_name = session[13] or ""
 
                 # 获取数据行
                 cur.execute(
@@ -798,7 +806,15 @@ async def get_upload_session(session_id: int) -> JSONResponse:
                     "upload_date": session[1].isoformat() if session[1] else None,
                     "upload_time": session[2].isoformat() if session[2] else None,
                     "filename": session[3],
+                    "sheet_name": sheet_name,
+                    "config_name": config_name,
                 }
+                # 添加图表配置（关键：前端需要这些字段渲染自定义图表）
+                payload["chart_type_config"] = chart_types_json
+                payload["display_name_config"] = display_names_json
+                payload["column_type_config"] = column_types_json
+                payload["selected_columns"] = selected_columns
+                payload["sheet_name"] = sheet_name
                 payload["ok"] = True
     except HTTPException:
         raise
