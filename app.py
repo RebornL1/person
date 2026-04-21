@@ -700,10 +700,11 @@ async def get_latest_upload() -> JSONResponse:
     try:
         with connect(dsn) as conn:
             with conn.cursor() as cur:
-                # 获取最新会话
+                # 获取最新会话（包含完整配置字段）
                 cur.execute(
                     sql.SQL("""
-                    SELECT id, upload_date, upload_time, filename, row_count, col_count, columns_json, has_workload_analysis
+                    SELECT id, upload_date, upload_time, filename, row_count, col_count, columns_json, has_workload_analysis,
+                           sheet_name, selected_columns, display_names, column_types, chart_types, config_name
                     FROM {}
                     ORDER BY upload_date DESC, upload_time DESC
                     LIMIT 1
@@ -715,6 +716,13 @@ async def get_latest_upload() -> JSONResponse:
 
                 session_id = session[0]
                 columns = parse_json_value(session[6]) or []
+                # 解析图表配置字段
+                sheet_name = session[8] or ""
+                selected_columns = session[9] or ""
+                display_names_json = parse_json_value(session[10]) or {}
+                column_types_json = parse_json_value(session[11]) or {}
+                chart_types_json = parse_json_value(session[12]) or {}
+                config_name = session[13] or ""
 
                 # 获取该会话的所有数据行
                 cur.execute(
@@ -742,7 +750,15 @@ async def get_latest_upload() -> JSONResponse:
                     "upload_date": session[1].isoformat() if session[1] else None,
                     "upload_time": session[2].isoformat() if session[2] else None,
                     "filename": session[3],
+                    "sheet_name": sheet_name,
+                    "config_name": config_name,
                 }
+                # 添加图表配置（关键：前端需要这些字段渲染自定义图表）
+                payload["chart_type_config"] = chart_types_json
+                payload["display_name_config"] = display_names_json
+                payload["column_type_config"] = column_types_json
+                payload["selected_columns"] = selected_columns
+                payload["sheet_name"] = sheet_name
                 payload["ok"] = True
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"读取最新数据失败：{e!s}") from e
