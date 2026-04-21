@@ -233,6 +233,7 @@
               ${isDefault ? '<span style="color:var(--good);font-size:0.72rem;margin-left:0.3rem;">默认</span>' : ''}
             </div>
             <div style="display:flex;gap:0.4rem;">
+              <button type="button" class="btn" style="font-size:0.72rem;padding:0.25rem 0.4rem;background:var(--accent-soft);border-color:var(--accent);" data-load-mapping="${m.id}">加载</button>
               <button type="button" class="btn" style="font-size:0.72rem;padding:0.25rem 0.4rem;" data-edit-mapping="${m.id}">编辑</button>
               ${!isDefault ? `<button type="button" class="btn" style="font-size:0.72rem;padding:0.25rem 0.4rem;background:var(--err-bg);border-color:var(--danger);" data-delete-mapping="${m.id}">删除</button>` : ''}
             </div>
@@ -240,7 +241,10 @@
         `;
       }).join("");
 
-      // 绑定编辑和删除事件
+      // 绑定加载、编辑和删除事件
+      savedMappingsList.querySelectorAll("button[data-load-mapping]").forEach(btn => {
+        btn.addEventListener("click", () => loadMappingToImport(parseInt(btn.getAttribute("data-load-mapping"), 10)));
+      });
       savedMappingsList.querySelectorAll("button[data-edit-mapping]").forEach(btn => {
         btn.addEventListener("click", () => editMapping(parseInt(btn.getAttribute("data-edit-mapping"), 10)));
       });
@@ -411,15 +415,21 @@
     // 加载选中的列映射配置到导入弹窗
     function loadSelectedMappingToImport() {
       const selectedId = mappingSelect.value;
-      
       if (!selectedId) {
         if (mappingLoadStatus) mappingLoadStatus.textContent = "已选择默认配置";
         return;
       }
-      
-      const mapping = savedMappings.find(m => m.id === parseInt(selectedId, 10));
+      loadMappingToImport(parseInt(selectedId, 10));
+    }
+    
+    // 通过ID加载列映射配置到导入弹窗
+    function loadMappingToImport(mappingId) {
+      const mapping = savedMappings.find(m => m.id === mappingId);
       if (!mapping) {
-        if (mappingLoadStatus) mappingLoadStatus.textContent = "配置不存在";
+        if (mappingLoadStatus) {
+          mappingLoadStatus.textContent = "配置不存在";
+          mappingLoadStatus.style.color = "var(--danger)";
+        }
         return;
       }
       
@@ -437,7 +447,6 @@
               // 尝试匹配列名到标准字段，并设置显示名称
               const matchedKey = findColumnKey(colName, aliases);
               if (matchedKey) {
-                // 使用标准字段名称作为显示名称
                 const standardNames = {
                   name: "姓名",
                   oncall_open: "oncall未闭环",
@@ -459,8 +468,13 @@
         }
       }
       
+      // 更新下拉框选中项
+      if (mappingSelect) {
+        mappingSelect.value = mappingId;
+      }
+      
       if (mappingLoadStatus) {
-        mappingLoadStatus.textContent = `已加载配置: ${mapping.name || selectedId}`;
+        mappingLoadStatus.textContent = `已加载配置: ${mapping.name || mapping.mapping_name}`;
         mappingLoadStatus.style.color = "var(--good)";
       }
     }
