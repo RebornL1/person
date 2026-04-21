@@ -100,18 +100,8 @@
       <section>
         <h2>数据存储与管理</h2>
         <div class="custom-builder">
-          <!-- 配置名称和加载下拉框 -->
-          <div class="custom-actions" style="gap:0.5rem;">
-            <input id="config-name-input" class="custom-input" placeholder="配置名称（用于下次快速加载）" style="flex:1;min-width:200px;" />
-            <select id="saved-config-select" class="mapping-select" style="min-width:180px;">
-              <option value="">选择已保存配置...</option>
-            </select>
-            <button type="button" class="btn" id="load-saved-config-btn">加载配置</button>
-            <button type="button" class="btn" id="refresh-saved-configs-btn">刷新</button>
-          </div>
-          <div id="config-load-status" class="status-note" style="margin-bottom:0.5rem;"></div>
-          
           <div class="custom-actions">
+            <input id="config-name-input" class="custom-input" placeholder="配置名称（用于下次快速加载）" style="min-width:200px;" />
             <input id="custom-mode-name" class="custom-input" placeholder="存储名称" />
             <button type="button" class="btn" id="save-custom-mode-btn">保存到数据库</button>
             <button type="button" class="btn" id="select-all-columns-btn">全选列</button>
@@ -305,6 +295,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-  <script src="/static/app.js?v=20260417d"></script>
+  <script src="/static/app.js?v=20260417e"></script>
 </body>
 </html>

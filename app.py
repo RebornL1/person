@@ -198,12 +198,13 @@ def _save_upload_to_db(
         )
         session_id = cur.fetchone()[0]
 
-        # 批量插入数据行
-        insert_stmt = sql.SQL("INSERT INTO {} (session_id, row_index, row_data) VALUES (%s, %s, %s)").format(
-            sql.Identifier(UPLOAD_DATA_TABLE)
-        )
-        batch_values = [(session_id, idx, json.dumps(row)) for idx, row in enumerate(rows)]
-        cur.executemany(insert_stmt, batch_values)
+        # 批量插入数据行 - 使用逐行插入避免executemany的占位符问题
+        table_name = sql.Identifier(UPLOAD_DATA_TABLE)
+        for idx, row in enumerate(rows):
+            cur.execute(
+                sql.SQL("INSERT INTO {} (session_id, row_index, row_data) VALUES (%s, %s, %s)").format(table_name),
+                (session_id, idx, json.dumps(row))
+            )
         conn.commit()
 
     return session_id
@@ -721,6 +722,40 @@ async def get_saved_configs() -> JSONResponse:
             "configs": [],
             "error": str(e),
         })
+
+
+@app.get("/api/session/config/{session_id}")
+async def get_session_config(session_id: int) -> JSONResponse:
+    """获取指定会话的配置信息。"""
+    dsn = get_pg_dsn()
+    try:
+        with connect(dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    sql.SQL("""
+                    SELECT id, config_name, display_names, column_types, chart_types, selected_columns, sheet_name, filename
+                    FROM {}
+                    WHERE id = %s
+                    """).format(sql.Identifier(UPLOAD_SESSIONS_TABLE)),
+                    (session_id,)
+                )
+                row = cur.fetchone()
+                if not row:
+                    return JSONResponse(content={"ok": False, "error": "会话不存在"})
+                
+                return JSONResponse(content={
+                    "ok": True,
+                    "session_id": row[0],
+                    "config_name": row[1] or "",
+                    "display_names": parse_json_value(row[2]) or {},
+                    "column_types": parse_json_value(row[3]) or {},
+                    "chart_types": parse_json_value(row[4]) or {},
+                    "selected_columns": row[5] or "",
+                    "sheet_name": row[6] or "",
+                    "filename": row[7] or "",
+                })
+    except Exception as e:
+        return JSONResponse(content={"ok": False, "error": str(e)})
 
 
 @app.get("/api/upload/latest")

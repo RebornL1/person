@@ -102,8 +102,8 @@
     let mappingSelect, newMappingBtn, mappingEditPanel, mappingNameInput;
     let saveMappingBtn, cancelMappingBtn, savedMappingsList, mappingMessage, mappingMatchStatus, refreshMappingsBtn;
     let welcomeSection, loadSampleBtn, downloadTemplateBtn, loadLatestQuickBtn;
-    // 配置名称和加载相关
-    let configNameInput, savedConfigSelect, loadSavedConfigBtn, refreshSavedConfigsBtn, configLoadStatus;
+    // 配置名称输入
+    let configNameInput;
     // 导入配置弹窗相关
     let importConfigModal, closeImportConfigBtn, confirmImportBtn, importStatus;
     let sheetListEl;
@@ -113,8 +113,6 @@
     let pendingPreviewData = null;
     
     // 已保存的配置列表
-    let savedConfigs = [];
-    
     // 当前列映射配置
     let currentColumnMapping = {};
     
@@ -1606,105 +1604,9 @@
           historySection.style.display = "none";
         }
         
-        // 同时加载已保存的配置列表
-        loadSavedConfigs();
-      } catch (e) {
+        } catch (e) {
         historySection.style.display = "none";
       }
-    }
-    
-    // 加载已保存的配置列表
-    async function loadSavedConfigs() {
-      if (!savedConfigSelect) return;
-      
-      try {
-        const res = await fetch("/api/config/list");
-        const data = await res.json().catch(() => ({}));
-        
-        if (!res.ok || !data.ok) {
-          savedConfigSelect.innerHTML = '<option value="">暂无配置</option>';
-          return;
-        }
-        
-        savedConfigs = Array.isArray(data.configs) ? data.configs : [];
-        
-        if (savedConfigs.length === 0) {
-          savedConfigSelect.innerHTML = '<option value="">暂无已保存配置</option>';
-          return;
-        }
-        
-        savedConfigSelect.innerHTML = '<option value="">选择已保存配置...</option>' +
-          savedConfigs.map((cfg, idx) => 
-            `<option value="${idx}">${escapeHtml(cfg.config_name)} (${cfg.filename || '未知文件'})</option>`
-          ).join("");
-        
-      } catch (e) {
-        savedConfigSelect.innerHTML = '<option value="">加载失败</option>';
-      }
-    }
-    
-    // 加载选中的配置到导入弹窗
-    function loadSelectedConfig() {
-      const selectedIndex = savedConfigSelect.value;
-      
-      if (!selectedIndex || selectedIndex === "") {
-        configLoadStatus.textContent = "请先选择一个配置";
-        return;
-      }
-      
-      const cfg = savedConfigs[parseInt(selectedIndex, 10)];
-      if (!cfg) {
-        configLoadStatus.textContent = "配置不存在";
-        return;
-      }
-      
-      // 如果有导入弹窗正在显示，更新弹窗中的配置
-      if (pendingPreviewData && pendingPreviewData.sheets && pendingPreviewData.sheets.length > 0) {
-        // 应用配置到第一个sheet的字段配置
-        const firstSheet = pendingPreviewData.sheets[0];
-        
-        // 更新字段配置显示
-        const columnConfigListEl = document.getElementById("column-config-list");
-        if (columnConfigListEl) {
-          // 对每个列应用配置
-          columnConfigListEl.querySelectorAll(".column-config-item").forEach(item => {
-            const colName = item.getAttribute("data-col-name");
-            
-            // 设置显示名称
-            const displayInput = item.querySelector("input[data-col-display]");
-            if (displayInput && cfg.display_names && cfg.display_names[colName]) {
-              displayInput.value = cfg.display_names[colName];
-            }
-            
-            // 设置数据类型
-            const typeSelect = item.querySelector("select[data-col-type]");
-            if (typeSelect && cfg.column_types && cfg.column_types[colName]) {
-              typeSelect.value = cfg.column_types[colName];
-            }
-            
-            // 设置图表类型
-            const chartSelect = item.querySelector("select[data-col-chart]");
-            if (chartSelect && cfg.chart_types && cfg.chart_types[colName]) {
-              chartSelect.value = cfg.chart_types[colName];
-            }
-            
-            // 设置是否选中
-            const checkbox = item.querySelector("input[type='checkbox']");
-            if (checkbox && cfg.selected_columns) {
-              const selectedCols = cfg.selected_columns.split(",");
-              checkbox.checked = selectedCols.includes(colName);
-              item.classList.toggle("selected", checkbox.checked);
-            }
-          });
-        }
-      }
-      
-      // 设置配置名称输入框
-      if (configNameInput) {
-        configNameInput.value = cfg.config_name;
-      }
-      
-      configLoadStatus.textContent = `已加载配置: ${cfg.config_name}`;
     }
 
     // 应用日期筛选
@@ -1769,6 +1671,7 @@
                 : '<span style="background:var(--err-bg);color:var(--danger);font-size:0.7rem;padding:0.15rem 0.35rem;border-radius:4px;margin-left:0.3rem;">无分析</span>';
               const sheetInfo = s.sheet_name ? `<span style="font-size:0.7rem;color:var(--muted);margin-left:0.3rem;">(${s.sheet_name})</span>` : '';
               const configInfo = s.config_name ? `<span style="font-size:0.7rem;color:var(--accent);margin-left:0.3rem;">[${s.config_name}]</span>` : '';
+              const hasConfig = s.config_name && s.config_name.trim() !== '';
               return `
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;background:var(--surface);border-radius:8px;margin-top:0.25rem;border:1px solid var(--border);">
                   <div style="display:flex;align-items:center;gap:0.4rem;">
@@ -1778,9 +1681,10 @@
                     ${configInfo}
                     ${analysisBadge}
                   </div>
-                  <div style="display:flex;align-items:center;gap:0.6rem;">
+                  <div style="display:flex;align-items:center;gap:0.4rem;">
                     <span style="font-size:0.72rem;color:var(--muted);">${rowCol}</span>
-                    <button type="button" class="btn" style="font-size:0.72rem;padding:0.3rem 0.5rem;" data-load-session="${s.session_id}">加载</button>
+                    <button type="button" class="btn" style="font-size:0.72rem;padding:0.3rem 0.5rem;" data-load-session="${s.session_id}">加载数据</button>
+                    ${hasConfig ? `<button type="button" class="btn" style="font-size:0.72rem;padding:0.3rem 0.5rem;background:var(--accent-soft);border-color:var(--accent);" data-load-config="${s.session_id}">加载配置</button>` : ''}
                     <button type="button" class="btn" style="font-size:0.72rem;padding:0.3rem 0.5rem;background:var(--err-bg);border-color:var(--danger);" data-delete-session="${s.session_id}">删除</button>
                   </div>
                 </div>
@@ -1809,6 +1713,68 @@
       uploadHistoryList.querySelectorAll("button[data-delete-session]").forEach((btn) => {
         btn.addEventListener("click", () => deleteSessionData(parseInt(btn.getAttribute("data-delete-session"), 10)));
       });
+      // 加载配置按钮事件
+      uploadHistoryList.querySelectorAll("button[data-load-config]").forEach((btn) => {
+        btn.addEventListener("click", () => loadSessionConfig(parseInt(btn.getAttribute("data-load-config"), 10)));
+      });
+    }
+    
+    // 加载会话配置到导入弹窗
+    async function loadSessionConfig(sessionId) {
+      try {
+        const res = await fetch(`/api/session/config/${sessionId}`);
+        const cfg = await res.json().catch(() => ({}));
+        
+        if (!res.ok || !cfg.ok) {
+          alert("加载配置失败: " + (cfg.error || "未知错误"));
+          return;
+        }
+        
+        // 如果有导入弹窗正在显示，更新弹窗中的配置
+        if (pendingPreviewData && pendingPreviewData.sheets && pendingPreviewData.sheets.length > 0) {
+          const columnConfigListEl = document.getElementById("column-config-list");
+          if (columnConfigListEl) {
+            columnConfigListEl.querySelectorAll(".column-config-item").forEach(item => {
+              const colName = item.getAttribute("data-col-name");
+              
+              // 设置显示名称
+              const displayInput = item.querySelector("input[data-col-display]");
+              if (displayInput && cfg.display_names && cfg.display_names[colName]) {
+                displayInput.value = cfg.display_names[colName];
+              }
+              
+              // 设置数据类型
+              const typeSelect = item.querySelector("select[data-col-type]");
+              if (typeSelect && cfg.column_types && cfg.column_types[colName]) {
+                typeSelect.value = cfg.column_types[colName];
+              }
+              
+              // 设置图表类型
+              const chartSelect = item.querySelector("select[data-col-chart]");
+              if (chartSelect && cfg.chart_types && cfg.chart_types[colName]) {
+                chartSelect.value = cfg.chart_types[colName];
+              }
+              
+              // 设置是否选中
+              const checkbox = item.querySelector("input[type='checkbox']");
+              if (checkbox && cfg.selected_columns) {
+                const selectedCols = cfg.selected_columns.split(",");
+                checkbox.checked = selectedCols.includes(colName);
+                item.classList.toggle("selected", checkbox.checked);
+              }
+            });
+          }
+        }
+        
+        // 设置配置名称输入框
+        if (configNameInput) {
+          configNameInput.value = cfg.config_name || "";
+        }
+        
+        alert(`已加载配置: ${cfg.config_name || cfg.filename || sessionId}`);
+      } catch (e) {
+        alert("加载配置失败: " + e.message);
+      }
     }
 
     async function loadSessionData(sessionId) {
@@ -2066,10 +2032,6 @@
       loadLatestQuickBtn = document.getElementById("load-latest-quick-btn");
       // 配置名称和加载相关
       configNameInput = document.getElementById("config-name-input");
-      savedConfigSelect = document.getElementById("saved-config-select");
-      loadSavedConfigBtn = document.getElementById("load-saved-config-btn");
-      refreshSavedConfigsBtn = document.getElementById("refresh-saved-configs-btn");
-      configLoadStatus = document.getElementById("config-load-status");
       // 导入配置弹窗相关
       importConfigModal = document.getElementById("import-config-modal");
       closeImportConfigBtn = document.getElementById("close-import-config");
@@ -2086,10 +2048,6 @@
       if (loadSampleBtn) loadSampleBtn.addEventListener("click", loadSampleData);
       if (downloadTemplateBtn) downloadTemplateBtn.addEventListener("click", downloadTemplate);
       if (loadLatestQuickBtn) loadLatestQuickBtn.addEventListener("click", loadLatestQuick);
-      
-      // 配置加载相关事件
-      if (loadSavedConfigBtn) loadSavedConfigBtn.addEventListener("click", loadSelectedConfig);
-      if (refreshSavedConfigsBtn) refreshSavedConfigsBtn.addEventListener("click", loadSavedConfigs);
       
       // 列映射配置事件
       if (newMappingBtn) newMappingBtn.addEventListener("click", () => showEditPanel());
