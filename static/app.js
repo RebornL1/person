@@ -1428,6 +1428,12 @@
       // 渲染自定义图表（根据用户选择的图表类型）- 始终执行
       renderCustomCharts(latestAllRows, latestColumns, chartTypeConfig, displayNameConfig);
       
+      // 自定义图表区域始终显示（如果有图表配置）
+      const customChartsSection = document.getElementById("custom-charts-section");
+      if (customChartsSection && chartTypeConfig && Object.keys(chartTypeConfig).length > 0) {
+        customChartsSection.style.display = "block";
+      }
+      
       // 如果有工作量分析数据，渲染工作量相关图表
       if (a && a.people && a.people.length) {
         currentAnalysis = a;

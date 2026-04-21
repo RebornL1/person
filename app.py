@@ -114,9 +114,9 @@ def _save_upload_to_db(
                 (session_id, idx, json.dumps(rows[idx]))
                 for idx in range(batch_start, batch_end)
             ]
-            # 使用 execute_values 进行批量插入
-            from psycopg import extras
-            extras.execute_values(cur, insert_sql, batch_values, template=None, page_size=1000)
+            # 使用 execute_values 进行批量插入 (psycopg 3.x 正确导入方式)
+            import psycopg.extras
+            psycopg.extras.execute_values(cur, insert_sql, batch_values, template=None, page_size=1000)
         
         conn.commit()
 
