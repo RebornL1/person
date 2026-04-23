@@ -598,12 +598,28 @@
     function showImportConfigModal(previewData) {
       try {
         const sheets = previewData.sheets || [];
+        const mergedInfo = previewData.merged_info || null;
         
         // 渲染sheet列表
         if (sheetListEl) {
-          sheetListEl.innerHTML = sheets.map((sheet, idx) => `
-            <div class="sheet-item ${idx === 0 ? 'selected' : ''}" data-sheet-index="${idx}">
-              <input type="checkbox" ${idx === 0 ? 'checked' : ''} data-sheet-name="${escapeHtml(sheet.sheet_name)}" />
+          // 如果有汇总信息，添加汇总选项
+          let mergeOptionHtml = "";
+          if (mergedInfo && mergedInfo.can_merge) {
+            mergeOptionHtml = `
+              <div class="sheet-item merge-all-item" data-sheet-index="-1">
+                <input type="checkbox" id="merge-sheets-checkbox" />
+                <div class="sheet-item-info">
+                  <span class="sheet-item-name">汇总所有日期</span>
+                  <span class="sheet-item-meta">${mergedInfo.message || ''}</span>
+                </div>
+                <span class="sheet-item-badge badge-merge">汇总</span>
+              </div>
+            `;
+          }
+          
+          sheetListEl.innerHTML = mergeOptionHtml + sheets.map((sheet, idx) => `
+            <div class="sheet-item ${idx === 0 && !mergedInfo ? 'selected' : ''}" data-sheet-index="${idx}">
+              <input type="checkbox" ${idx === 0 && !mergedInfo ? 'checked' : ''} data-sheet-name="${escapeHtml(sheet.sheet_name)}" />
               <div class="sheet-item-info">
                 <span class="sheet-item-name">${escapeHtml(sheet.sheet_name)}</span>
                 <span class="sheet-item-meta">${sheet.row_count}行 / ${sheet.col_count}列</span>
@@ -611,10 +627,31 @@
               ${sheet.has_workload_analysis ? '<span class="sheet-item-badge">可分析</span>' : ''}
             </div>
           `).join("");
+          
+          // 绑定汇总checkbox事件
+          const mergeCheckbox = document.getElementById("merge-sheets-checkbox");
+          if (mergeCheckbox) {
+            mergeCheckbox.addEventListener("change", (e) => {
+              const mergeItem = e.target.closest(".merge-all-item");
+              mergeItem.classList.toggle("selected", e.target.checked);
+              // 取消其他sheet的选择
+              sheetListEl.querySelectorAll(".sheet-item:not(.merge-all-item)").forEach(item => {
+                const checkbox = item.querySelector("input[type='checkbox']");
+                checkbox.checked = false;
+                item.classList.remove("selected");
+              });
+              // 如果选中汇总，显示汇总预览
+              if (e.target.checked && mergedInfo && mergedInfo.summary_columns) {
+                renderColumnConfigList(mergedInfo.summary_columns, {});
+              }
+            });
+          }
         }
         
-        // 默认显示第一个sheet的字段配置
-        if (sheets.length > 0) {
+        // 默认显示第一个sheet的字段配置（除非有汇总选项）
+        if (mergedInfo && mergedInfo.can_merge && mergedInfo.summary_columns) {
+          renderColumnConfigList(mergedInfo.summary_columns, {});
+        } else if (sheets.length > 0) {
           renderColumnConfigList(sheets[0].columns, sheets[0].column_types);
         } else {
           renderColumnConfigList([], {});
@@ -622,9 +659,17 @@
         
         // 绑定sheet点击事件
         if (sheetListEl) {
-          sheetListEl.querySelectorAll(".sheet-item").forEach(item => {
+          sheetListEl.querySelectorAll(".sheet-item:not(.merge-all-item)").forEach(item => {
             item.addEventListener("click", (e) => {
               if (e.target.tagName === "INPUT") return;
+              // 取消汇总选项
+              const mergeCheckbox = document.getElementById("merge-sheets-checkbox");
+              if (mergeCheckbox) {
+                mergeCheckbox.checked = false;
+                const mergeItem = mergeCheckbox.closest(".merge-all-item");
+                if (mergeItem) mergeItem.classList.remove("selected");
+              }
+              
               const checkbox = item.querySelector("input[type='checkbox']");
               checkbox.checked = !checkbox.checked;
               item.classList.toggle("selected", checkbox.checked);
@@ -775,15 +820,21 @@
     // 确认导入
     async function confirmImport() {
       const sheets = pendingPreviewData?.sheets || [];
+      const mergedInfo = pendingPreviewData?.merged_info || null;
+      
+      // 检查是否选择了汇总模式
+      const mergeCheckbox = document.getElementById("merge-sheets-checkbox");
+      const isMergeMode = mergeCheckbox && mergeCheckbox.checked;
       
       // 获取选中的sheet
       const selectedSheetNames = [];
-      sheetListEl.querySelectorAll("input[type='checkbox']:checked").forEach(cb => {
+      sheetListEl.querySelectorAll(".sheet-item:not(.merge-all-item) input[type='checkbox']:checked").forEach(cb => {
         selectedSheetNames.push(cb.getAttribute("data-sheet-name"));
       });
       
-      if (selectedSheetNames.length === 0) {
-        importStatus.textContent = "请至少选择一个Sheet页";
+      // 汇总模式下不需要选择sheet
+      if (!isMergeMode && selectedSheetNames.length === 0) {
+        importStatus.textContent = "请至少选择一个Sheet页或选择汇总模式";
         return;
       }
       
@@ -801,12 +852,72 @@
       const columnTypesStr = selectedColumnConfig.map(c => `${c.name}:${c.type}`).join(",");
       const chartTypesStr = selectedColumnConfig.map(c => `${c.name}:${c.chartType}`).join(",");
       
-      importStatus.textContent = `正在导入 ${selectedSheetNames.length} 个Sheet...`;
-      
       // 获取当前选择的列映射配置ID
       const selectedMappingId = mappingSelect ? mappingSelect.value : "";
+      const configName = configNameInput ? configNameInput.value.trim() : "";
       
-      // 依次处理每个sheet
+      // 汇总模式：单次请求合并所有sheet
+      if (isMergeMode) {
+        importStatus.textContent = "正在汇总导入所有日期数据...";
+        
+        try {
+          const fd = new FormData();
+          fd.append("file", pendingFile);
+          
+          // 构建URL参数：merge_sheets=true
+          let importUrl = `/api/upload?merge_sheets=true&selected_columns=${encodeURIComponent(selectedColumns)}&display_names=${encodeURIComponent(displayNamesStr)}&column_types=${encodeURIComponent(columnTypesStr)}&chart_types=${encodeURIComponent(chartTypesStr)}`;
+          if (selectedMappingId) {
+            importUrl += `&column_mapping_id=${selectedMappingId}`;
+          }
+          if (configName) {
+            importUrl += `&config_name=${encodeURIComponent(configName)}`;
+          }
+          
+          const res = await fetch(importUrl, { method: "POST", body: fd });
+          const data = await res.json().catch(() => ({}));
+          
+          if (!res.ok) {
+            importStatus.textContent = `导入失败: ${data.detail || '未知错误'}`;
+            return;
+          }
+          
+          importStatus.textContent = `汇总导入成功: ${mergedInfo?.date_count || 0}个日期数据已合并`;
+          closeImportConfigModal();
+          clearError();
+          
+          try {
+            render(data);
+          } catch (renderErr) {
+            const msg = renderErr && renderErr.message ? renderErr.message : String(renderErr || "未知渲染异常");
+            showError(`导入成功，但页面渲染失败：${msg}`);
+            return;
+          }
+          
+          result.style.display = "block";
+          hideWelcome();
+          
+          // 显示数据库入库状态
+          const dbStatus = document.getElementById("db-status");
+          if (dbStatus) {
+            if (data.saved_to_db) {
+              dbStatus.style.display = "block";
+              dbStatus.innerHTML = `<span style="color:var(--good);">✓ 数据已入库</span> (汇总模式, 会话ID: ${data.session_id || '-'})`;
+            } else if (data.db_error) {
+              dbStatus.style.display = "block";
+              dbStatus.innerHTML = `<span style="color:var(--danger);">⚠ 入库失败</span>: ${data.db_error}`;
+            }
+          }
+          
+        } catch (e) {
+          importStatus.textContent = `汇总导入异常: ${e.message || e}`;
+        }
+        
+        return;
+      }
+      
+      // 单sheet模式：依次处理每个sheet
+      importStatus.textContent = `正在导入 ${selectedSheetNames.length} 个Sheet...`;
+      
       let successCount = 0;
       let lastData = null;
       
@@ -817,10 +928,7 @@
           const fd = new FormData();
           fd.append("file", pendingFile);
           
-          // 获取配置名称
-          const configName = configNameInput ? configNameInput.value.trim() : "";
-          
-          // 构建URL参数：包含选择的列、显示名称、数据类型、图表类型配置、配置名称
+          // 构建URL参数
           let importUrl = `/api/upload?sheet_name=${encodeURIComponent(sheetName)}&selected_columns=${encodeURIComponent(selectedColumns)}&display_names=${encodeURIComponent(displayNamesStr)}&column_types=${encodeURIComponent(columnTypesStr)}&chart_types=${encodeURIComponent(chartTypesStr)}`;
           if (selectedMappingId) {
             importUrl += `&column_mapping_id=${selectedMappingId}`;

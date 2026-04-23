@@ -1792,6 +1792,18 @@
       background: var(--btn-bg);
       color: var(--good);
     }
+    .badge-merge {
+      background: var(--accent);
+      color: #fff;
+    }
+    .merge-all-item {
+      background: linear-gradient(135deg, var(--surface) 0%, rgba(61, 139, 253, 0.1) 100%);
+      border: 2px solid var(--accent);
+      margin-bottom: 0.5rem;
+    }
+    .merge-all-item.selected {
+      background: linear-gradient(135deg, rgba(61, 139, 253, 0.15) 0%, rgba(61, 139, 253, 0.25) 100%);
+    }
     .column-list {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
