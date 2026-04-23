@@ -361,6 +361,81 @@ async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
                 "preview_rows": preview_rows,
                 "has_workload_analysis": _build_workload_analysis(df) is not None,
             })
+        
+        # 如果有多个sheet且列结构一致，生成汇总数据
+        merged_info = None
+        if len(sheets_info) > 1:
+            # 检查列结构是否一致
+            first_columns = sheets_info[0]["columns"]
+            columns_match = all(s["columns"] == first_columns for s in sheets_info)
+            
+            if columns_match:
+                # 合并所有sheet数据
+                all_dfs = []
+                for sheet_name in sheet_names:
+                    df_sheet = pd.read_excel(xls, sheet_name=sheet_name)
+                    for col in df_sheet.columns:
+                        df_sheet[col] = df_sheet[col].apply(safe_cell_value)
+                    # 添加日期来源列
+                    df_sheet["_date_source"] = sheet_name
+                    all_dfs.append(df_sheet)
+                
+                merged_df = pd.concat(all_dfs, ignore_index=True)
+                merged_df = merged_df.fillna("")
+                
+                # 按姓名汇总（如果存在姓名列）
+                name_col = None
+                for col in merged_df.columns:
+                    if col != "_date_source" and ("姓名" in col or "名字" in col or col == "name"):
+                        name_col = col
+                        break
+                
+                if name_col:
+                    # 数值列求和汇总
+                    numeric_cols = [col for col in merged_df.columns 
+                                   if col != name_col and col != "_date_source" 
+                                   and merged_df[col].dtype in ['int64', 'float64', 'int32', 'float32']]
+                    
+                    # 计算每人的平均值/总和
+                    summary_df = merged_df.groupby(name_col).agg({
+                        **{col: 'sum' for col in numeric_cols}
+                    }).reset_index()
+                    
+                    # 计算出现天数
+                    date_counts = merged_df.groupby(name_col)["_date_source"].nunique().reset_index()
+                    date_counts.columns = [name_col, "出现天数"]
+                    summary_df = summary_df.merge(date_counts, on=name_col)
+                    
+                    # 计算平均值
+                    for col in numeric_cols:
+                        summary_df[f"{col}_平均"] = summary_df[col] / summary_df["出现天数"]
+                    
+                    summary_preview = json.loads(summary_df.head(10).to_json(orient="records", force_ascii=False))
+                    
+                    merged_info = {
+                        "can_merge": True,
+                        "total_rows": len(merged_df),
+                        "unique_people": len(summary_df),
+                        "date_count": len(sheet_names),
+                        "dates": sheet_names,
+                        "summary_preview": summary_preview,
+                        "summary_columns": list(summary_df.columns),
+                        "message": f"检测到 {len(sheet_names)} 个日期数据，可自动汇总。共 {len(merged_df)} 条记录，{len(summary_df)} 人。"
+                    }
+                else:
+                    merged_info = {
+                        "can_merge": True,
+                        "total_rows": len(merged_df),
+                        "date_count": len(sheet_names),
+                        "dates": sheet_names,
+                        "message": f"检测到 {len(sheet_names)} 个sheet，可合并展示。"
+                    }
+            else:
+                merged_info = {
+                    "can_merge": False,
+                    "message": "各sheet列结构不一致，无法自动汇总。"
+                }
+        
         logger.info(f"预览文件成功: {safe_filename}, {len(sheets_info)} 个sheet")
     except Exception as e:
         logger.error(f"解析 Excel 失败: {e}")
@@ -374,6 +449,7 @@ async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
         "filename": safe_filename,
         "sheets": sheets_info,
         "sheet_count": len(sheets_info),
+        "merged_info": merged_info,  # 新增汇总信息
     })
 
 
@@ -387,6 +463,7 @@ async def upload_excel(
     column_types: str | None = Query(None, description="列数据类型，格式 col:type"),
     chart_types: str | None = Query(None, description="图表类型，格式 col:chartType"),
     config_name: str | None = Query(None, description="配置名称，用于后续加载"),
+    merge_sheets: bool = Query(False, description="是否合并多个sheet的数据进行汇总"),
 ) -> JSONResponse:
     # 文件名安全检查
     name = (file.filename or "").lower()
@@ -412,8 +489,62 @@ async def upload_excel(
     try:
         bio = io.BytesIO(raw)
         engine = "openpyxl" if name.endswith(".xlsx") else "xlrd"
-        # 支持指定sheet
-        if sheet_name:
+        
+        # 支持多sheet汇总模式
+        if merge_sheets and not sheet_name:
+            xls = pd.ExcelFile(bio, engine=engine)
+            sheet_names = xls.sheet_names
+            
+            if len(sheet_names) > 1:
+                # 合并所有sheet
+                all_dfs = []
+                for sn in sheet_names:
+                    df_sheet = pd.read_excel(xls, sheet_name=sn)
+                    for col in df_sheet.columns:
+                        df_sheet[col] = df_sheet[col].apply(safe_cell_value)
+                    df_sheet["_date_source"] = sn
+                    all_dfs.append(df_sheet)
+                
+                merged_df = pd.concat(all_dfs, ignore_index=True)
+                
+                # 查找姓名列进行汇总
+                name_col = None
+                for col in merged_df.columns:
+                    if col != "_date_source" and ("姓名" in col or "名字" in col or col == "name"):
+                        name_col = col
+                        break
+                
+                if name_col:
+                    # 数值列汇总
+                    numeric_cols = [col for col in merged_df.columns 
+                                   if col != name_col and col != "_date_source" 
+                                   and merged_df[col].dtype in ['int64', 'float64', 'int32', 'float32']]
+                    
+                    # 求和汇总
+                    summary_df = merged_df.groupby(name_col).agg({
+                        **{col: 'sum' for col in numeric_cols}
+                    }).reset_index()
+                    
+                    # 计算出现天数
+                    date_counts = merged_df.groupby(name_col)["_date_source"].nunique().reset_index()
+                    date_counts.columns = [name_col, "出现天数"]
+                    summary_df = summary_df.merge(date_counts, on=name_col)
+                    
+                    # 计算平均值
+                    for col in numeric_cols:
+                        summary_df[f"{col}_平均"] = (summary_df[col] / summary_df["出现天数"]).round(2)
+                    
+                    # 移除临时列
+                    merged_df = summary_df
+                    logger.info(f"多sheet汇总完成: {len(sheet_names)}个sheet, 汇总后{len(merged_df)}人")
+                else:
+                    merged_df = merged_df.drop(columns=["_date_source"])
+                    logger.info(f"多sheet合并完成: {len(sheet_names)}个sheet, {len(merged_df)}行")
+                
+                df = merged_df.fillna("")
+            else:
+                df = pd.read_excel(bio, engine=engine)
+        elif sheet_name:
             df = pd.read_excel(bio, engine=engine, sheet_name=sheet_name)
         else:
             df = pd.read_excel(bio, engine=engine)
