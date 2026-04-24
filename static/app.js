@@ -599,6 +599,7 @@
       try {
         const sheets = previewData.sheets || [];
         const mergedInfo = previewData.merged_info || null;
+        const dateSummary = previewData.date_summary || null;
         
         // 渲染sheet列表
         if (sheetListEl) {
@@ -617,16 +618,39 @@
             `;
           }
           
-          sheetListEl.innerHTML = mergeOptionHtml + sheets.map((sheet, idx) => `
-            <div class="sheet-item ${idx === 0 && !mergedInfo ? 'selected' : ''}" data-sheet-index="${idx}">
-              <input type="checkbox" ${idx === 0 && !mergedInfo ? 'checked' : ''} data-sheet-name="${escapeHtml(sheet.sheet_name)}" />
-              <div class="sheet-item-info">
-                <span class="sheet-item-name">${escapeHtml(sheet.sheet_name)}</span>
-                <span class="sheet-item-meta">${sheet.row_count}行 / ${sheet.col_count}列</span>
+          // 渲染sheet列表，包含日期识别信息
+          sheetListEl.innerHTML = mergeOptionHtml + sheets.map((sheet, idx) => {
+            const dateInfo = sheet.date_info || {};
+            const isDateRecognized = dateInfo.is_date;
+            const displayName = dateInfo.display_name || sheet.sheet_name;
+            const dateBadgeHtml = isDateRecognized 
+              ? `<span class="sheet-item-badge badge-date">${escapeHtml(displayName)}</span>`
+              : `<span class="sheet-item-badge badge-unknown">未识别</span>`;
+            
+            return `
+              <div class="sheet-item ${idx === 0 && !mergedInfo ? 'selected' : ''}" data-sheet-index="${idx}">
+                <input type="checkbox" ${idx === 0 && !mergedInfo ? 'checked' : ''} data-sheet-name="${escapeHtml(sheet.sheet_name)}" />
+                <div class="sheet-item-info">
+                  <span class="sheet-item-name">${escapeHtml(sheet.sheet_name)}</span>
+                  <span class="sheet-item-meta">${sheet.row_count}行 / ${sheet.col_count}列</span>
+                </div>
+                ${dateBadgeHtml}
+                ${sheet.has_workload_analysis ? '<span class="sheet-item-badge">可分析</span>' : ''}
               </div>
-              ${sheet.has_workload_analysis ? '<span class="sheet-item-badge">可分析</span>' : ''}
-            </div>
-          `).join("");
+            `;
+          }).join("");
+          
+          // 如果有未识别的日期，显示手动校准提示
+          if (dateSummary && dateSummary.unrecognized_sheets && dateSummary.unrecognized_sheets.length > 0) {
+            const unrecognizedHtml = `
+              <div class="unrecognized-dates-warning">
+                <span class="warning-icon">⚠️</span>
+                <span>以下sheet未能识别为日期：${dateSummary.unrecognized_sheets.map(s => escapeHtml(s)).join(", ")}</span>
+                <small>可在导入后手动调整</small>
+              </div>
+            `;
+            sheetListEl.innerHTML += unrecognizedHtml;
+          }
           
           // 绑定汇总checkbox事件
           const mergeCheckbox = document.getElementById("merge-sheets-checkbox");
@@ -1305,6 +1329,164 @@
       const kpisOld = document.getElementById("kpis");
       if (kpisOld) {
         kpisOld.innerHTML = kpiHtml;
+      }
+      
+      // 渲染风险预测和团队建议（如果后端提供了数据）
+      if (a.risk_predictions) {
+        renderRiskPredictions(a.risk_predictions);
+      }
+      if (a.team_suggestions) {
+        renderTeamSuggestions(a.team_suggestions, a.is_multi_date_summary);
+      }
+    }
+
+    // 渲染风险预测报告
+    function renderRiskPredictions(predictions) {
+      const riskPredictionsEl = document.getElementById("risk-predictions");
+      if (!riskPredictionsEl) return;
+      
+      const summaryHtml = (predictions.summary || []).map(s => `<div class="prediction-summary-item">${escapeHtml(s)}</div>`).join("");
+      
+      let detailsHtml = "";
+      
+      // 高压人员
+      if (predictions.high_pressure_people && predictions.high_pressure_people.length > 0) {
+        detailsHtml += `
+          <div class="prediction-category">
+            <h4>⚠️ 高压人员</h4>
+            <ul>
+              ${predictions.high_pressure_people.map(p => `
+                <li><strong>${escapeHtml(p.name)}</strong>: ${escapeHtml(p.reason)}</li>
+              `).join("")}
+            </ul>
+          </div>
+        `;
+      }
+      
+      // 透传求助异常
+      if (predictions.escalation_concerns && predictions.escalation_concerns.length > 0) {
+        detailsHtml += `
+          <div class="prediction-category warning">
+            <h4>⚠️ 透传求助异常（需关注技能成长）</h4>
+            <ul>
+              ${predictions.escalation_concerns.map(p => `
+                <li><strong>${escapeHtml(p.name)}</strong>: ${escapeHtml(p.reason)}<br><small>${escapeHtml(p.suggestion)}</small></li>
+              `).join("")}
+            </ul>
+          </div>
+        `;
+      }
+      
+      // 出勤异常
+      if (predictions.attendance_issues && predictions.attendance_issues.length > 0) {
+        detailsHtml += `
+          <div class="prediction-category info">
+            <h4>📊 出勤异常</h4>
+            <ul>
+              ${predictions.attendance_issues.map(p => `
+                <li><strong>${escapeHtml(p.name)}</strong>: 出现${p.date_count}天，${escapeHtml(p.suggestion)}</li>
+              `).join("")}
+            </ul>
+          </div>
+        `;
+      }
+      
+      // 内核问题集中
+      if (predictions.kernel_focus_people && predictions.kernel_focus_people.length > 0) {
+        detailsHtml += `
+          <div class="prediction-category">
+            <h4>🔧 内核问题集中</h4>
+            <ul>
+              ${predictions.kernel_focus_people.map(p => `
+                <li><strong>${escapeHtml(p.name)}</strong>: 内核问题占比${p.kernel_ratio}%，${escapeHtml(p.suggestion)}</li>
+              `).join("")}
+            </ul>
+          </div>
+        `;
+      }
+      
+      // 产出偏低
+      if (predictions.low_productivity_people && predictions.low_productivity_people.length > 0) {
+        detailsHtml += `
+          <div class="prediction-category">
+            <h4>📝 产出偏低</h4>
+            <ul>
+              ${predictions.low_productivity_people.map(p => `
+                <li><strong>${escapeHtml(p.name)}</strong>: 总产出${fmt(p.output)}</li>
+              `).join("")}
+            </ul>
+          </div>
+        `;
+      }
+      
+      riskPredictionsEl.innerHTML = `
+        <div class="predictions-header">
+          <h3>🎯 智能风险预测</h3>
+        </div>
+        <div class="predictions-summary">${summaryHtml}</div>
+        <div class="predictions-details">${detailsHtml}</div>
+      `;
+      riskPredictionsEl.style.display = "block";
+    }
+
+    // 渲染团队建议
+    function renderTeamSuggestions(suggestions, isMultiDate) {
+      const teamSuggestionsEl = document.getElementById("team-suggestions");
+      if (!teamSuggestionsEl) return;
+      
+      const multiDateInfo = isMultiDate 
+        ? `<div class="multi-date-badge">📊 多日汇总分析</div>` 
+        : "";
+      
+      teamSuggestionsEl.innerHTML = `
+        <div class="suggestions-header">
+          <h3>💡 团队建议</h3>
+          ${multiDateInfo}
+        </div>
+        <ul class="suggestions-list">
+          ${suggestions.map(s => `<li>${escapeHtml(s)}</li>`).join("")}
+        </ul>
+      `;
+      teamSuggestionsEl.style.display = "block";
+    }
+
+    // 渲染日期选择器（用于多日数据）
+    function renderDateSelector(mergedInfo) {
+      const dateSelectorEl = document.getElementById("date-selector");
+      if (!dateSelectorEl) return;
+      
+      if (!mergedInfo || !mergedInfo.dates || mergedInfo.dates.length <= 1) {
+        dateSelectorEl.style.display = "none";
+        return;
+      }
+      
+      const dates = mergedInfo.dates || [];
+      const dateOptionsHtml = dates.map(d => `
+        <option value="${escapeHtml(d)}">${escapeHtml(d)}</option>
+      `).join("");
+      
+      dateSelectorEl.innerHTML = `
+        <div class="date-selector-header">
+          <label for="date-select">📅 查看特定日期数据：</label>
+          <select id="date-select" class="date-select">
+            <option value="all">全部汇总</option>
+            ${dateOptionsHtml}
+          </select>
+        </div>
+        <div class="date-info">
+          <span>共 ${dates.length} 个日期，${mergedInfo.unique_people || 0} 人（全勤 ${mergedInfo.date_coverage?.full_coverage || 0} 人）</span>
+        </div>
+      `;
+      dateSelectorEl.style.display = "block";
+      
+      // 绑定日期选择事件
+      const dateSelect = document.getElementById("date-select");
+      if (dateSelect) {
+        dateSelect.addEventListener("change", (e) => {
+          const selectedDate = e.target.value;
+          // TODO: 实现按日期筛选数据的功能
+          console.log("Selected date:", selectedDate);
+        });
       }
     }
 

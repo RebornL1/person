@@ -34,6 +34,7 @@ from utils import (
     normalize_col_name, find_col, to_float, parse_json_value,
     slugify_mode_name, infer_sql_type, normalize_cell_for_insert,
     dataframe_to_preview, safe_cell_value,
+    parse_sheet_name_to_date, parse_all_sheet_dates, get_date_display_order,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -152,6 +153,153 @@ def _build_person_risk(person: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _build_risk_predictions(people: list[dict[str, Any]], is_multi_date: bool, total_count: int, full_attendance: int) -> dict[str, Any]:
+    """
+    构建智能风险预测报告，基于多日数据分析个人和团队风险点。
+    
+    Args:
+        people: 人员数据列表
+        is_multi_date: 是否为多日汇总数据
+        total_count: 总人数
+        full_attendance: 全勤人数
+    
+    Returns:
+        {
+            "high_pressure_people": 高压人员列表及原因,
+            "escalation_concerns": 透传求助异常人员,
+            "low_productivity_people": 产出偏低人员,
+            "attendance_issues": 出勤异常人员,
+            "kernel_focus_people": 内核问题集中人员,
+            "summary": 风险预测摘要
+        }
+    """
+    predictions = {
+        "high_pressure_people": [],
+        "escalation_concerns": [],
+        "low_productivity_people": [],
+        "attendance_issues": [],
+        "kernel_focus_people": [],
+        "summary": [],
+    }
+    
+    # 计算团队平均值（用于对比判断）
+    avg_workload = sum(p.get("workload_score", 0) for p in people) / len(people) if people else 0
+    avg_escalation = sum(p.get("escalation_help", 0) for p in people) / len(people) if people else 0
+    avg_output = sum(p.get("issue_ticket_output", 0) + p.get("requirement_ticket_output", 0) + p.get("wiki_output", 0) + p.get("analysis_report_output", 0) for p in people) / len(people) if people else 0
+    
+    for p in people:
+        name = p.get("name", "")
+        workload = p.get("workload_score", 0)
+        escalation = p.get("escalation_help", 0)
+        output_total = p.get("issue_ticket_output", 0) + p.get("requirement_ticket_output", 0) + p.get("wiki_output", 0) + p.get("analysis_report_output", 0)
+        kernel = p.get("kernel_issue", 0)
+        date_count = p.get("date_count", 1)
+        
+        # 1. 高压人员：工作量分超过平均值1.5倍
+        if workload > avg_workload * 1.5 and workload > 30:
+            reason = f"工作量分{round(workload, 1)}（团队平均{round(avg_workload, 1)}），压力过大"
+            predictions["high_pressure_people"].append({"name": name, "workload": workload, "reason": reason})
+        
+        # 2. 透传求助异常：透传高于平均值2倍，且产出较低
+        if escalation > avg_escalation * 2 and escalation > 1 and output_total < avg_output * 0.5:
+            reason = f"透传求助{round(escalation, 1)}次（团队平均{round(avg_escalation, 1)}），但产出仅{round(output_total, 1)}"
+            predictions["escalation_concerns"].append({
+                "name": name, 
+                "escalation": escalation, 
+                "output": output_total,
+                "reason": reason,
+                "suggestion": "透传较多但独立处理问题数量较少，建议加强技能培训和问题闭环能力"
+            })
+        
+        # 3. 产出偏低：总产出低于平均值0.3倍
+        if output_total < avg_output * 0.3 and output_total < 3:
+            predictions["low_productivity_people"].append({"name": name, "output": output_total})
+        
+        # 4. 出勤异常：仅适用于多日汇总数据
+        if is_multi_date and date_count < 3:  # 出现少于3天认为出勤异常
+            predictions["attendance_issues"].append({
+                "name": name,
+                "date_count": date_count,
+                "suggestion": f"出现天数{int(date_count)}天，请假/缺席次数较多，需关注工作安排"
+            })
+        
+        # 5. 内核问题集中：内核问题占比超过50%
+        daily_issue = p.get("daily_issue_total", 0)
+        if kernel > 0 and daily_issue > 0 and kernel / daily_issue > 0.5:
+            predictions["kernel_focus_people"].append({
+                "name": name,
+                "kernel_ratio": round(kernel / daily_issue * 100, 1),
+                "suggestion": "内核问题处理集中，建议专项根因分析"
+            })
+    
+    # 构建摘要
+    if predictions["high_pressure_people"]:
+        predictions["summary"].append(f"⚠️ {len(predictions['high_pressure_people'])}人工作量压力过大，建议合理分配任务")
+    if predictions["escalation_concerns"]:
+        predictions["summary"].append(f"⚠️ {len(predictions['escalation_concerns'])}人透传求助异常多但产出较低，需关注技能成长")
+    if predictions["attendance_issues"]:
+        predictions["summary"].append(f"📊 {len(predictions['attendance_issues'])}人出勤天数较少，请关注工作连续性")
+    if predictions["kernel_focus_people"]:
+        predictions["summary"].append(f"🔧 {len(predictions['kernel_focus_people'])}人内核问题占比高，建议专项攻关")
+    if predictions["low_productivity_people"]:
+        predictions["summary"].append(f"📝 {len(predictions['low_productivity_people'])}人产出偏低，建议加强激励")
+    
+    if not predictions["summary"]:
+        predictions["summary"].append("✅ 团队整体风险可控，各项指标分布合理")
+    
+    return predictions
+
+
+def _build_team_suggestions(people: list[dict[str, Any]], totals: dict[str, Any], is_multi_date: bool) -> list[str]:
+    """
+    构建团队层面的建议，基于整体数据分析。
+    
+    Args:
+        people: 人员数据列表
+        totals: 总量数据
+        is_multi_date: 是否为多日汇总数据
+    
+    Returns:
+        建议列表
+    """
+    suggestions = []
+    
+    # 分析团队整体情况
+    high_risk_count = sum(1 for p in people if p.get("risk_level") == "high")
+    total_people = len(people)
+    
+    # 透传求助比例
+    if totals.get("escalation_help", 0) > 10:
+        avg_escalation = totals["escalation_help"] / total_people if total_people > 0 else 0
+        suggestions.append(f"团队透传求助总量较高（{totals['escalation_help']}次，人均{round(avg_escalation, 1)}次），建议组织排障经验分享会。")
+    
+    # 内核问题比例
+    kernel_ratio = totals.get("kernel_issue", 0) / (totals.get("daily_issue_total", 1) or 1)
+    if kernel_ratio > 0.3:
+        suggestions.append(f"内核问题占比{round(kernel_ratio * 100, 1)}%，建议专项跟进内核问题根因分析。")
+    
+    # 知识沉淀
+    wiki_total = totals.get("wiki_output", 0) + totals.get("analysis_report_output", 0)
+    if wiki_total < 5:
+        suggestions.append("团队知识沉淀产出偏低，建议设立wiki产出激励机制。")
+    
+    # 高风险人员比例
+    if high_risk_count > 0 and total_people > 0:
+        high_ratio = high_risk_count / total_people
+        if high_ratio > 0.2:
+            suggestions.append(f"高风险人员占比{round(high_ratio * 100, 1)}%，建议重点关注并合理调整工作分配。")
+    
+    # 多日数据特有建议
+    if is_multi_date:
+        # 分析数据波动趋势
+        suggestions.append("已按多日数据汇总分析，工作量分基于日均数据计算，更公平反映实际负荷。")
+    
+    if not suggestions:
+        suggestions.append("团队各项指标健康，建议持续保持当前工作节奏和知识沉淀习惯。")
+    
+    return suggestions
+
+
 def _get_column_aliases_from_config(mapping_config: dict[str, Any] | None) -> dict[str, list[str]]:
     """从配置中提取列别名映射，如果无配置则使用默认值。"""
     if mapping_config is None:
@@ -169,9 +317,16 @@ def _get_column_aliases_from_config(mapping_config: dict[str, Any] | None) -> di
 
 def _build_workload_analysis(
     df: pd.DataFrame, 
-    column_aliases: dict[str, list[str]] | None = None
+    column_aliases: dict[str, list[str]] | None = None,
+    is_multi_date_summary: bool = False
 ) -> dict[str, Any] | None:
-    """构建工作量分析，支持自定义列别名。"""
+    """构建工作量分析，支持自定义列别名和多日汇总模式。
+    
+    Args:
+        df: 数据DataFrame
+        column_aliases: 列别名映射
+        is_multi_date_summary: 是否为多日汇总数据（使用平均值列计算工作量分）
+    """
     cols = [str(c) for c in df.columns.tolist()]
     
     # 使用传入的别名或默认别名
@@ -181,20 +336,42 @@ def _build_workload_analysis(
     name_col = find_col(cols, column_aliases.get("name", ["姓名"]))
     if not name_col:
         return None
+    
+    # 检查是否存在"出现天数"列，判断是否为多日汇总数据
+    date_count_col = find_col(cols, ["出现天数"])
+    if date_count_col and not is_multi_date_summary:
+        is_multi_date_summary = True
+    
+    # 对于多日汇总数据，优先使用"平均值"列来计算工作量分
+    # 这样可以公平评估每个人的日均工作量，避免天数多的用户工作量分偏高
+    col_map = {}
+    metric_keys = [
+        "oncall_open", "pending_ticket", "new_issue_yesterday",
+        "governance_issue", "kernel_issue", "consult_issue", "escalation_help",
+        "issue_ticket_output", "requirement_ticket_output", "wiki_output", "analysis_report_output"
+    ]
+    
+    for key in metric_keys:
+        # 对于多日汇总数据，优先查找平均值列
+        avg_col_name = None
+        if is_multi_date_summary:
+            base_aliases = column_aliases.get(key, [])
+            # 构建平均值列的别名（如 "oncall接单未闭环的数量_平均"）
+            avg_aliases = [f"{alias}_平均" for alias in base_aliases] + [f"{alias} 平均" for alias in base_aliases]
+            avg_aliases.extend([f"{key}_平均", f"{key} 平均"])
+            avg_col_name = find_col(cols, avg_aliases)
+        
+        if avg_col_name:
+            # 使用平均值列
+            col_map[key] = avg_col_name
+        else:
+            # 使用原始列或总和列
+            col_map[key] = find_col(cols, column_aliases.get(key, []))
 
-    col_map = {
-        "oncall_open": find_col(cols, column_aliases.get("oncall_open", ["oncall接单未闭环的数量"])),
-        "pending_ticket": find_col(cols, column_aliases.get("pending_ticket", ["名下的待处理工单数"])),
-        "new_issue_yesterday": find_col(cols, column_aliases.get("new_issue_yesterday", ["昨日新增多少个问题"])),
-        "governance_issue": find_col(cols, column_aliases.get("governance_issue", ["多少个管控的问题"])),
-        "kernel_issue": find_col(cols, column_aliases.get("kernel_issue", ["多少个内核的问题"])),
-        "consult_issue": find_col(cols, column_aliases.get("consult_issue", ["多少个咨询问题"])),
-        "escalation_help": find_col(cols, column_aliases.get("escalation_help", ["透传求助了多少个"])),
-        "issue_ticket_output": find_col(cols, column_aliases.get("issue_ticket_output", ["问题单数量"])),
-        "requirement_ticket_output": find_col(cols, column_aliases.get("requirement_ticket_output", ["需求单数量"])),
-        "wiki_output": find_col(cols, column_aliases.get("wiki_output", ["wiki输出数量"])),
-        "analysis_report_output": find_col(cols, column_aliases.get("analysis_report_output", ["问题分析报告数量"])),
-    }
+    # 检查是否找到了足够的列（至少需要姓名列和一些数值列）
+    found_cols = sum(1 for v in col_map.values() if v)
+    if found_cols < 3:
+        return None
 
     weights = DEFAULT_WEIGHTS.copy()
 
@@ -203,15 +380,24 @@ def _build_workload_analysis(
         person = str(row.get(name_col, "")).strip()
         if not person:
             continue
+        
+        # 获取指标值
         metrics = {k: to_float(row.get(v, 0)) if v else 0.0 for k, v in col_map.items()}
         daily_issue_total = metrics["governance_issue"] + metrics["kernel_issue"] + metrics["consult_issue"]
         score = sum(metrics[k] * w for k, w in weights.items())
+        
+        # 对于多日汇总数据，工作量分基于平均值，更合理
         item = {
             "name": person,
             **{k: round(v, 2) for k, v in metrics.items()},
             "daily_issue_total": round(daily_issue_total, 2),
             "workload_score": round(score, 2),
         }
+        
+        # 如果有出现天数列，添加到结果中
+        if date_count_col:
+            item["date_count"] = to_float(row.get(date_count_col, 1))
+        
         item.update(_build_person_risk(item))
         people.append(item)
 
@@ -221,6 +407,8 @@ def _build_workload_analysis(
     by_score = sorted(people, key=lambda x: x["workload_score"], reverse=True)
     by_escalation = sorted(people, key=lambda x: x["escalation_help"], reverse=True)
     by_risk = sorted(people, key=lambda x: x["risk_score"], reverse=True)
+    
+    # 计算总量（注意：对于多日汇总数据，这些是基于平均值的总量）
     totals = {k: round(sum(p[k] for p in people), 2) for k in weights}
     totals["daily_issue_total"] = round(sum(p["daily_issue_total"] for p in people), 2)
     totals["risk_score"] = round(sum(p["risk_score"] for p in people), 2)
@@ -235,6 +423,11 @@ def _build_workload_analysis(
         + totals["analysis_report_output"] * 1.15,
         2,
     )
+    
+    # 计算人数统计
+    total_people_count = len(people)
+    full_attendance_count = sum(1 for p in people if p.get("date_count", 1) >= 2) if date_count_col else total_people_count
+    
     risk_level_counts = {"high": 0, "medium": 0, "low": 0}
     for p in people:
         risk_level_counts[p["risk_level"]] += 1
@@ -249,6 +442,12 @@ def _build_workload_analysis(
         "top_transparent_names": [p["name"] for p in by_escalation[:3]],
         "high_risk_names": [p["name"] for p in by_risk if p["risk_level"] == "high"][:5],
         "risk_level_counts": risk_level_counts,
+        "is_multi_date_summary": is_multi_date_summary,  # 标记是否为多日汇总数据
+        "total_people_count": total_people_count,  # 总人数
+        "full_attendance_count": full_attendance_count,  # 全勤人数
+        # 新增：智能风险预测和团队建议
+        "risk_predictions": _build_risk_predictions(people, is_multi_date_summary, total_people_count, full_attendance_count),
+        "team_suggestions": _build_team_suggestions(people, totals, is_multi_date_summary),
         "gaussdb_online_focus": {
             "description": "聚焦现网问题承压、内核问题处理与知识沉淀能力，透传求助作为负向项。",
             "index": totals["gaussdb_focus_index"],
@@ -324,7 +523,10 @@ async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
         sheet_names = xls.sheet_names
         
         sheets_info = []
-        for sheet_name in sheet_names:
+        # 解析所有sheet名称为日期
+        date_info_list = parse_all_sheet_dates(sheet_names)
+        
+        for idx, sheet_name in enumerate(sheet_names):
             df = pd.read_excel(xls, sheet_name=sheet_name)
             
             # 应用 safe_cell_value 处理所有单元格，兼容空值和公式错误
@@ -352,6 +554,9 @@ async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
             # 获取前几行预览
             preview_rows = json.loads(df.head(5).to_json(orient="records", force_ascii=False))
             
+            # 获取日期识别信息
+            date_info = date_info_list[idx] if idx < len(date_info_list) else {}
+            
             sheets_info.append({
                 "sheet_name": sheet_name,
                 "row_count": int(df.shape[0]),
@@ -360,6 +565,13 @@ async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
                 "column_types": column_types,
                 "preview_rows": preview_rows,
                 "has_workload_analysis": _build_workload_analysis(df) is not None,
+                # 新增日期识别信息
+                "date_info": {
+                    "is_date": date_info.get("is_date", False),
+                    "parsed_date": date_info.get("parsed_date"),
+                    "display_name": date_info.get("display_name", sheet_name),
+                    "format_type": date_info.get("format_type"),
+                },
             })
         
         # 如果有多个sheet且列结构一致，生成汇总数据
@@ -370,62 +582,113 @@ async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
             columns_match = all(s["columns"] == first_columns for s in sheets_info)
             
             if columns_match:
-                # 合并所有sheet数据
-                all_dfs = []
-                for sheet_name in sheet_names:
-                    df_sheet = pd.read_excel(xls, sheet_name=sheet_name)
-                    for col in df_sheet.columns:
-                        df_sheet[col] = df_sheet[col].apply(safe_cell_value)
-                    # 添加日期来源列
-                    df_sheet["_date_source"] = sheet_name
-                    all_dfs.append(df_sheet)
-                
-                merged_df = pd.concat(all_dfs, ignore_index=True)
-                merged_df = merged_df.fillna("")
-                
-                # 按姓名汇总（如果存在姓名列）
+                # 合并所有sheet数据（按姓名聚合，不依赖行位置）
+                # 先找出姓名列和数值列
                 name_col = None
-                for col in merged_df.columns:
-                    if col != "_date_source" and ("姓名" in col or "名字" in col or col == "name"):
+                for col in first_columns:
+                    if "姓名" in col or "名字" in col or col == "name":
                         name_col = col
                         break
                 
-                if name_col:
-                    # 数值列求和汇总
-                    numeric_cols = [col for col in merged_df.columns 
-                                   if col != name_col and col != "_date_source" 
-                                   and merged_df[col].dtype in ['int64', 'float64', 'int32', 'float32']]
+                # 收集所有数据，按sheet和姓名组织
+                all_data_by_person: dict[str, dict[str, Any]] = {}  # {person_name: {metric: [values]}}
+                person_dates: dict[str, list[str]] = {}  # {person_name: [dates]}
+                
+                for sheet_name in sheet_names:
+                    df_sheet = pd.read_excel(xls, sheet_name=sheet_name)
                     
-                    # 计算每人的平均值/总和
-                    summary_df = merged_df.groupby(name_col).agg({
-                        **{col: 'sum' for col in numeric_cols}
-                    }).reset_index()
+                    if name_col and name_col in df_sheet.columns:
+                        # 找出数值列（排除姓名列）
+                        potential_numeric_cols = [col for col in df_sheet.columns if col != name_col]
+                        
+                        for idx, row in df_sheet.iterrows():
+                            person = str(row.get(name_col, "")).strip()
+                            if not person:
+                                continue
+                            
+                            # 初始化人员数据结构
+                            if person not in all_data_by_person:
+                                all_data_by_person[person] = {}
+                                person_dates[person] = []
+                            
+                            person_dates[person].append(sheet_name)
+                            
+                            # 收集每个数值列的值（空值按0处理）
+                            for col in potential_numeric_cols:
+                                value = row.get(col)
+                                # 处理空值：NaN、None、空字符串都按0处理
+                                if value is None or (isinstance(value, float) and pd.isna(value)):
+                                    numeric_value = 0.0
+                                elif isinstance(value, str) and value.strip() == "":
+                                    numeric_value = 0.0
+                                else:
+                                    try:
+                                        numeric_value = float(value)
+                                    except (TypeError, ValueError):
+                                        numeric_value = 0.0
+                                
+                                if col not in all_data_by_person[person]:
+                                    all_data_by_person[person][col] = []
+                                all_data_by_person[person][col].append(numeric_value)
+                
+                if name_col and all_data_by_person:
+                    # 构建汇总DataFrame
+                    summary_rows = []
+                    for person in sorted(all_data_by_person.keys()):
+                        row_data = {name_col: person, "出现天数": len(person_dates[person]), "出现日期": person_dates[person]}
+                        
+                        for col, values in all_data_by_person[person].items():
+                            # 总和
+                            row_data[col] = sum(values)
+                            # 平均值（保留2位小数）
+                            row_data[f"{col}_平均"] = round(sum(values) / len(values), 2)
+                        
+                        summary_rows.append(row_data)
                     
-                    # 计算出现天数
-                    date_counts = merged_df.groupby(name_col)["_date_source"].nunique().reset_index()
-                    date_counts.columns = [name_col, "出现天数"]
-                    summary_df = summary_df.merge(date_counts, on=name_col)
+                    summary_df = pd.DataFrame(summary_rows)
                     
-                    # 计算平均值
-                    for col in numeric_cols:
-                        summary_df[f"{col}_平均"] = summary_df[col] / summary_df["出现天数"]
+                    # 计算每日明细数据（原始数据，空值按0处理）
+                    daily_details = {}
+                    for sheet_name in sheet_names:
+                        df_sheet = pd.read_excel(xls, sheet_name=sheet_name)
+                        for col in df_sheet.columns:
+                            df_sheet[col] = df_sheet[col].apply(safe_cell_value)
+                        df_sheet = df_sheet.fillna(0)  # 数值列空值填0
+                        df_sheet["_date_source"] = sheet_name
+                        daily_details[sheet_name] = json.loads(df_sheet.head(20).to_json(orient="records", force_ascii=False))
                     
                     summary_preview = json.loads(summary_df.head(10).to_json(orient="records", force_ascii=False))
                     
+                    # 数值列列表（排除姓名、出现天数、出现日期等）
+                    numeric_cols = [col for col in summary_df.columns 
+                                   if col != name_col and col != "出现天数" and col != "出现日期"
+                                   and not col.endswith("_平均")]
+                    
+                    # 计算汇总后的工作量分析数据（使用平均值计算工作量分）
+                    workload_preview = _build_workload_analysis(summary_df) if len(numeric_cols) >= 10 else None
+                    
                     merged_info = {
                         "can_merge": True,
-                        "total_rows": len(merged_df),
+                        "has_workload_analysis": workload_preview is not None,
+                        "total_rows": sum(len(pd.read_excel(xls, sheet_name=sn)) for sn in sheet_names),
                         "unique_people": len(summary_df),
                         "date_count": len(sheet_names),
                         "dates": sheet_names,
                         "summary_preview": summary_preview,
                         "summary_columns": list(summary_df.columns),
-                        "message": f"检测到 {len(sheet_names)} 个日期数据，可自动汇总。共 {len(merged_df)} 条记录，{len(summary_df)} 人。"
+                        "daily_details": daily_details,
+                        "numeric_columns": numeric_cols,
+                        "date_coverage": {
+                            "full_coverage": len(summary_df[summary_df["出现天数"] == len(sheet_names)]),
+                            "partial_coverage": len(summary_df[summary_df["出现天数"] < len(sheet_names)]),
+                        },
+                        "workload_preview": workload_preview,
+                        "message": f"检测到 {len(sheet_names)} 个日期数据，可自动汇总。共 {sum(len(pd.read_excel(xls, sheet_name=sn)) for sn in sheet_names)} 条记录，{len(summary_df)} 人（全勤 {len(summary_df[summary_df['出现天数'] == len(sheet_names)])} 人）。"
                     }
                 else:
                     merged_info = {
                         "can_merge": True,
-                        "total_rows": len(merged_df),
+                        "total_rows": sum(len(pd.read_excel(xls, sheet_name=sn)) for sn in sheet_names),
                         "date_count": len(sheet_names),
                         "dates": sheet_names,
                         "message": f"检测到 {len(sheet_names)} 个sheet，可合并展示。"
@@ -449,7 +712,18 @@ async def preview_excel(file: UploadFile = File(...)) -> JSONResponse:
         "filename": safe_filename,
         "sheets": sheets_info,
         "sheet_count": len(sheets_info),
-        "merged_info": merged_info,  # 新增汇总信息
+        "merged_info": merged_info,  # 汇总信息
+        # 新增日期识别汇总
+        "date_summary": {
+            "total_sheets": len(sheet_names),
+            "recognized_dates": sum(1 for d in date_info_list if d.get("is_date")),
+            "unrecognized_sheets": [d.get("original_name") for d in date_info_list if not d.get("is_date")],
+            "date_range": {
+                "start": min([d.get("parsed_date") for d in date_info_list if d.get("parsed_date")]) if any(d.get("parsed_date") for d in date_info_list) else None,
+                "end": max([d.get("parsed_date") for d in date_info_list if d.get("parsed_date")]) if any(d.get("parsed_date") for d in date_info_list) else None,
+            },
+            "sorted_dates": [d.get("parsed_date") for d in get_date_display_order(date_info_list) if d.get("parsed_date")],
+        },
     })
 
 
@@ -496,54 +770,83 @@ async def upload_excel(
             sheet_names = xls.sheet_names
             
             if len(sheet_names) > 1:
-                # 合并所有sheet
-                all_dfs = []
-                for sn in sheet_names:
-                    df_sheet = pd.read_excel(xls, sheet_name=sn)
-                    for col in df_sheet.columns:
-                        df_sheet[col] = df_sheet[col].apply(safe_cell_value)
-                    df_sheet["_date_source"] = sn
-                    all_dfs.append(df_sheet)
-                
-                merged_df = pd.concat(all_dfs, ignore_index=True)
-                
-                # 查找姓名列进行汇总
+                # 查找姓名列
+                first_df = pd.read_excel(xls, sheet_name=sheet_names[0])
                 name_col = None
-                for col in merged_df.columns:
-                    if col != "_date_source" and ("姓名" in col or "名字" in col or col == "name"):
+                for col in first_df.columns:
+                    if "姓名" in col or "名字" in col or col == "name":
                         name_col = col
                         break
                 
                 if name_col:
-                    # 数值列汇总
-                    numeric_cols = [col for col in merged_df.columns 
-                                   if col != name_col and col != "_date_source" 
-                                   and merged_df[col].dtype in ['int64', 'float64', 'int32', 'float32']]
+                    # 按姓名聚合，不依赖行位置，空值按0处理
+                    all_data_by_person: dict[str, dict[str, Any]] = {}
+                    person_dates: dict[str, list[str]] = {}
                     
-                    # 求和汇总
-                    summary_df = merged_df.groupby(name_col).agg({
-                        **{col: 'sum' for col in numeric_cols}
-                    }).reset_index()
+                    for sn in sheet_names:
+                        df_sheet = pd.read_excel(xls, sheet_name=sn)
+                        
+                        if name_col in df_sheet.columns:
+                            potential_numeric_cols = [col for col in df_sheet.columns if col != name_col]
+                            
+                            for idx, row in df_sheet.iterrows():
+                                person = str(row.get(name_col, "")).strip()
+                                if not person:
+                                    continue
+                                
+                                if person not in all_data_by_person:
+                                    all_data_by_person[person] = {}
+                                    person_dates[person] = []
+                                
+                                person_dates[person].append(sn)
+                                
+                                for col in potential_numeric_cols:
+                                    value = row.get(col)
+                                    # 空值按0处理
+                                    if value is None or (isinstance(value, float) and pd.isna(value)):
+                                        numeric_value = 0.0
+                                    elif isinstance(value, str) and value.strip() == "":
+                                        numeric_value = 0.0
+                                    else:
+                                        try:
+                                            numeric_value = float(value)
+                                        except (TypeError, ValueError):
+                                            numeric_value = 0.0
+                                    
+                                    if col not in all_data_by_person[person]:
+                                        all_data_by_person[person][col] = []
+                                    all_data_by_person[person][col].append(numeric_value)
                     
-                    # 计算出现天数
-                    date_counts = merged_df.groupby(name_col)["_date_source"].nunique().reset_index()
-                    date_counts.columns = [name_col, "出现天数"]
-                    summary_df = summary_df.merge(date_counts, on=name_col)
+                    # 构建汇总DataFrame
+                    summary_rows = []
+                    for person in sorted(all_data_by_person.keys()):
+                        row_data = {name_col: person, "出现天数": len(person_dates[person]), "出现日期": person_dates[person]}
+                        
+                        for col, values in all_data_by_person[person].items():
+                            row_data[col] = sum(values)
+                            row_data[f"{col}_平均"] = round(sum(values) / len(values), 2)
+                        
+                        summary_rows.append(row_data)
                     
-                    # 计算平均值
-                    for col in numeric_cols:
-                        summary_df[f"{col}_平均"] = (summary_df[col] / summary_df["出现天数"]).round(2)
-                    
-                    # 移除临时列
-                    merged_df = summary_df
-                    logger.info(f"多sheet汇总完成: {len(sheet_names)}个sheet, 汇总后{len(merged_df)}人")
+                    merged_df = pd.DataFrame(summary_rows)
+                    logger.info(f"多sheet汇总完成: {len(sheet_names)}个sheet, 汇总后{len(merged_df)}人, 全勤{len([p for p in person_dates if len(person_dates[p]) == len(sheet_names)])}人")
                 else:
-                    merged_df = merged_df.drop(columns=["_date_source"])
+                    # 无姓名列，简单合并
+                    all_dfs = []
+                    for sn in sheet_names:
+                        df_sheet = pd.read_excel(xls, sheet_name=sn)
+                        for col in df_sheet.columns:
+                            df_sheet[col] = df_sheet[col].apply(safe_cell_value)
+                        all_dfs.append(df_sheet)
+                    merged_df = pd.concat(all_dfs, ignore_index=True)
                     logger.info(f"多sheet合并完成: {len(sheet_names)}个sheet, {len(merged_df)}行")
                 
-                df = merged_df.fillna("")
+                df = merged_df.fillna(0)  # 数值列空值填0
             else:
                 df = pd.read_excel(bio, engine=engine)
+                for col in df.columns:
+                    df[col] = df[col].apply(safe_cell_value)
+                df = df.fillna(0)
         elif sheet_name:
             df = pd.read_excel(bio, engine=engine, sheet_name=sheet_name)
         else:

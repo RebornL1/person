@@ -61,12 +61,11 @@ def main():
     # 创建输出目录
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     
-    # 生成3天的数据
-    base_date = datetime(2026, 4, 21)
+    # 生成3天的数据：4-21、4-22、4-23
     dates = [
-        (base_date - timedelta(days=1)).strftime("%Y-%m-%d"),  # 4-20
-        base_date.strftime("%Y-%m-%d"),  # 4-21
-        (base_date + timedelta(days=1)).strftime("%Y-%m-%d"),  # 4-22
+        datetime(2026, 4, 21).strftime("%Y-%m-%d"),  # 4-21
+        datetime(2026, 4, 22).strftime("%Y-%m-%d"),  # 4-22
+        datetime(2026, 4, 23).strftime("%Y-%m-%d"),  # 4-23
     ]
     
     # 每天的人员可能略有不同，模拟实际场景
