@@ -67,24 +67,30 @@ def ensure_upload_tables_exist(conn) -> None:
         )
         
         # ========== 3. 列映射配置表 ==========
-        # 存储自定义列名映射（无唯一约束）
+        # 存储自定义列名映射（新格式，支持更多字段）
         cur.execute(
             sql.SQL("""
             CREATE TABLE IF NOT EXISTS {} (
                 id BIGSERIAL PRIMARY KEY,
                 mapping_name TEXT NOT NULL DEFAULT '',
                 name_aliases JSONB DEFAULT '[]',
+                workload_count_aliases JSONB DEFAULT '[]',
                 oncall_open_aliases JSONB DEFAULT '[]',
                 pending_ticket_aliases JSONB DEFAULT '[]',
-                new_issue_yesterday_aliases JSONB DEFAULT '[]',
-                governance_issue_aliases JSONB DEFAULT '[]',
-                kernel_issue_aliases JSONB DEFAULT '[]',
+                new_ticket_yesterday_aliases JSONB DEFAULT '[]',
                 consult_issue_aliases JSONB DEFAULT '[]',
+                kernel_support_aliases JSONB DEFAULT '[]',
+                governance_support_aliases JSONB DEFAULT '[]',
                 escalation_help_aliases JSONB DEFAULT '[]',
-                issue_ticket_output_aliases JSONB DEFAULT '[]',
-                requirement_ticket_output_aliases JSONB DEFAULT '[]',
-                wiki_output_aliases JSONB DEFAULT '[]',
-                analysis_report_output_aliases JSONB DEFAULT '[]',
+                irregular_ticket_aliases JSONB DEFAULT '[]',
+                ticket_demand_output_aliases JSONB DEFAULT '[]',
+                case_summary_output_aliases JSONB DEFAULT '[]',
+                attendance_aliases JSONB DEFAULT '[]',
+                date_aliases JSONB DEFAULT '[]',
+                case_record_aliases JSONB DEFAULT '[]',
+                public_affairs_aliases JSONB DEFAULT '[]',
+                other_notes_aliases JSONB DEFAULT '[]',
+                risk_handover_aliases JSONB DEFAULT '[]',
                 is_default BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -140,43 +146,55 @@ def ensure_upload_tables_exist(conn) -> None:
         default_count = row[0] if row else 0
         
         if default_count == 0:
-            # 插入默认配置
+            # 插入默认配置（新格式）
             cur.execute(
                 sql.SQL("""
                 INSERT INTO {} (
                     mapping_name,
                     name_aliases,
+                    workload_count_aliases,
                     oncall_open_aliases,
                     pending_ticket_aliases,
-                    new_issue_yesterday_aliases,
-                    governance_issue_aliases,
-                    kernel_issue_aliases,
+                    new_ticket_yesterday_aliases,
                     consult_issue_aliases,
+                    kernel_support_aliases,
+                    governance_support_aliases,
                     escalation_help_aliases,
-                    issue_ticket_output_aliases,
-                    requirement_ticket_output_aliases,
-                    wiki_output_aliases,
-                    analysis_report_output_aliases,
+                    irregular_ticket_aliases,
+                    ticket_demand_output_aliases,
+                    case_summary_output_aliases,
+                    attendance_aliases,
+                    date_aliases,
+                    case_record_aliases,
+                    public_affairs_aliases,
+                    other_notes_aliases,
+                    risk_handover_aliases,
                     is_default
                 ) VALUES (
                     '默认配置',
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     TRUE
                 )
                 """).format(sql.Identifier(COLUMN_MAPPING_TABLE)),
                 (
                     json.dumps(DEFAULT_COLUMN_ALIASES["name"]),
+                    json.dumps(DEFAULT_COLUMN_ALIASES.get("workload_count", [])),
                     json.dumps(DEFAULT_COLUMN_ALIASES["oncall_open"]),
                     json.dumps(DEFAULT_COLUMN_ALIASES["pending_ticket"]),
-                    json.dumps(DEFAULT_COLUMN_ALIASES["new_issue_yesterday"]),
-                    json.dumps(DEFAULT_COLUMN_ALIASES["governance_issue"]),
-                    json.dumps(DEFAULT_COLUMN_ALIASES["kernel_issue"]),
+                    json.dumps(DEFAULT_COLUMN_ALIASES["new_ticket_yesterday"]),
                     json.dumps(DEFAULT_COLUMN_ALIASES["consult_issue"]),
+                    json.dumps(DEFAULT_COLUMN_ALIASES["kernel_support"]),
+                    json.dumps(DEFAULT_COLUMN_ALIASES["governance_support"]),
                     json.dumps(DEFAULT_COLUMN_ALIASES["escalation_help"]),
-                    json.dumps(DEFAULT_COLUMN_ALIASES["issue_ticket_output"]),
-                    json.dumps(DEFAULT_COLUMN_ALIASES["requirement_ticket_output"]),
-                    json.dumps(DEFAULT_COLUMN_ALIASES["wiki_output"]),
-                    json.dumps(DEFAULT_COLUMN_ALIASES["analysis_report_output"]),
+                    json.dumps(DEFAULT_COLUMN_ALIASES.get("irregular_ticket", [])),
+                    json.dumps(DEFAULT_COLUMN_ALIASES["ticket_demand_output"]),
+                    json.dumps(DEFAULT_COLUMN_ALIASES["case_summary_output"]),
+                    json.dumps(DEFAULT_COLUMN_ALIASES.get("attendance", [])),
+                    json.dumps(DEFAULT_COLUMN_ALIASES.get("date", [])),
+                    json.dumps(DEFAULT_COLUMN_ALIASES.get("case_record", [])),
+                    json.dumps(DEFAULT_COLUMN_ALIASES.get("public_affairs", [])),
+                    json.dumps(DEFAULT_COLUMN_ALIASES.get("other_notes", [])),
+                    json.dumps(DEFAULT_COLUMN_ALIASES.get("risk_handover", [])),
                 )
             )
             logger.info("已插入默认列映射配置")

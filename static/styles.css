@@ -825,7 +825,79 @@
     }
     .chart-card:hover .chart-wrap { transform: scale(1.01); }
     .chart-card-pair:hover .chart-wrap-half { transform: scale(1.01); }
-    /* 图表卡片交错动画 */
+    
+    /* ========== 参会情况Badge样式 ========== */
+    .attendance-badge {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      white-space: nowrap;
+      text-align: center;
+    }
+    .badge-good {
+      background: var(--good-bg);
+      color: var(--good);
+      border: 1px solid var(--good);
+    }
+    .badge-warn {
+      background: var(--warn-bg);
+      color: var(--warn);
+      border: 1px solid var(--warn);
+    }
+    .badge-danger {
+      background: var(--err-bg);
+      color: var(--danger);
+      border: 1px solid var(--danger);
+    }
+    .badge-muted {
+      background: var(--surface-hover);
+      color: var(--muted);
+      border: 1px solid var(--muted);
+    }
+    
+    /* ========== 案例/提单记录链接样式 ========== */
+    .case-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+      display: inline-block;
+      padding: 0.15rem 0.4rem;
+      background: var(--accent-bg);
+      border-radius: 6px;
+      margin: 0.1rem 0;
+      transition: all 0.2s;
+    }
+    .case-link:hover {
+      background: var(--accent);
+      color: white;
+      text-decoration: none;
+    }
+    .case-link:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    
+    /* ========== 今日风险问题/交接高亮样式 ========== */
+    .risk-highlight {
+      display: inline-block;
+      padding: 0.3rem 0.6rem;
+      background: linear-gradient(135deg, var(--warn-bg), var(--err-bg));
+      color: var(--danger);
+      border-radius: 8px;
+      font-weight: 500;
+      border: 1px solid var(--warn);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-width: 300px;
+    }
+    .no-risk {
+      color: var(--good);
+      font-style: italic;
+    }
+    
+    /* ========== 图表卡片交错动画 ========== */
     .chart-grid .chart-card:nth-child(1) { animation: chartSlideIn 0.6s 0.1s ease-out both; }
     .chart-grid .chart-card:nth-child(2) { animation: chartSlideIn 0.6s 0.2s ease-out both; }
     .chart-grid .chart-card:nth-child(3) { animation: chartSlideIn 0.6s 0.3s ease-out both; }

@@ -122,12 +122,11 @@ def _save_upload_to_db(
 
 
 def _build_person_risk(person: dict[str, Any]) -> dict[str, Any]:
-    risk_score = person["escalation_help"] * 1.2 + person["pending_ticket"] * 0.7 + person["oncall_open"] * 0.65
+    # 使用新的列名
+    risk_score = person.get("escalation_help", 0) * 1.2 + person.get("pending_ticket", 0) * 0.7 + person.get("oncall_open", 0) * 0.65
     encourage_score = (
-        person["issue_ticket_output"] * 1.0
-        + person["requirement_ticket_output"] * 0.9
-        + person["wiki_output"] * 1.2
-        + person["analysis_report_output"] * 1.1
+        person.get("ticket_demand_output", 0) * 1.0
+        + person.get("case_summary_output", 0) * 1.2
     )
     level = "low"
     if risk_score >= 18:
@@ -136,9 +135,9 @@ def _build_person_risk(person: dict[str, Any]) -> dict[str, Any]:
         level = "medium"
 
     suggestions: list[str] = []
-    if person["escalation_help"] >= 4:
+    if person.get("escalation_help", 0) >= 4:
         suggestions.append("透传求助偏高，建议前移排障与值守经验复盘。")
-    if person["kernel_issue"] >= person["governance_issue"] + person["consult_issue"]:
+    if person.get("kernel_support", 0) >= person.get("governance_support", 0) + person.get("consult_issue", 0):
         suggestions.append("内核问题占比高，建议安排专项根因分析与变更演练。")
     if encourage_score <= 4:
         suggestions.append("沉淀产出偏低，建议补充 wiki 与问题分析报告。")
@@ -185,14 +184,14 @@ def _build_risk_predictions(people: list[dict[str, Any]], is_multi_date: bool, t
     # 计算团队平均值（用于对比判断）
     avg_workload = sum(p.get("workload_score", 0) for p in people) / len(people) if people else 0
     avg_escalation = sum(p.get("escalation_help", 0) for p in people) / len(people) if people else 0
-    avg_output = sum(p.get("issue_ticket_output", 0) + p.get("requirement_ticket_output", 0) + p.get("wiki_output", 0) + p.get("analysis_report_output", 0) for p in people) / len(people) if people else 0
+    avg_output = sum(p.get("ticket_demand_output", 0) + p.get("case_summary_output", 0) for p in people) / len(people) if people else 0
     
     for p in people:
         name = p.get("name", "")
         workload = p.get("workload_score", 0)
         escalation = p.get("escalation_help", 0)
-        output_total = p.get("issue_ticket_output", 0) + p.get("requirement_ticket_output", 0) + p.get("wiki_output", 0) + p.get("analysis_report_output", 0)
-        kernel = p.get("kernel_issue", 0)
+        output_total = p.get("ticket_demand_output", 0) + p.get("case_summary_output", 0)
+        kernel = p.get("kernel_support", 0)
         date_count = p.get("date_count", 1)
         
         # 1. 高压人员：工作量分超过平均值1.5倍
@@ -274,13 +273,13 @@ def _build_team_suggestions(people: list[dict[str, Any]], totals: dict[str, Any]
         suggestions.append(f"团队透传求助总量较高（{totals['escalation_help']}次，人均{round(avg_escalation, 1)}次），建议组织排障经验分享会。")
     
     # 内核问题比例
-    kernel_ratio = totals.get("kernel_issue", 0) / (totals.get("daily_issue_total", 1) or 1)
+    kernel_ratio = totals.get("kernel_support", 0) / (totals.get("daily_issue_total", 1) or 1)
     if kernel_ratio > 0.3:
         suggestions.append(f"内核问题占比{round(kernel_ratio * 100, 1)}%，建议专项跟进内核问题根因分析。")
     
-    # 知识沉淀
-    wiki_total = totals.get("wiki_output", 0) + totals.get("analysis_report_output", 0)
-    if wiki_total < 5:
+    # 知识沉淀（提单/需求 + 案例总结）
+    output_total = totals.get("ticket_demand_output", 0) + totals.get("case_summary_output", 0)
+    if output_total < 5:
         suggestions.append("团队知识沉淀产出偏低，建议设立wiki产出激励机制。")
     
     # 高风险人员比例
@@ -346,9 +345,10 @@ def _build_workload_analysis(
     # 这样可以公平评估每个人的日均工作量，避免天数多的用户工作量分偏高
     col_map = {}
     metric_keys = [
-        "oncall_open", "pending_ticket", "new_issue_yesterday",
-        "governance_issue", "kernel_issue", "consult_issue", "escalation_help",
-        "issue_ticket_output", "requirement_ticket_output", "wiki_output", "analysis_report_output"
+        "oncall_open", "pending_ticket", "new_ticket_yesterday",
+        "consult_issue", "kernel_support", "governance_support",
+        "escalation_help", "irregular_ticket",
+        "ticket_demand_output", "case_summary_output"
     ]
     
     for key in metric_keys:
@@ -383,8 +383,8 @@ def _build_workload_analysis(
         
         # 获取指标值
         metrics = {k: to_float(row.get(v, 0)) if v else 0.0 for k, v in col_map.items()}
-        daily_issue_total = metrics["governance_issue"] + metrics["kernel_issue"] + metrics["consult_issue"]
-        score = sum(metrics[k] * w for k, w in weights.items())
+        daily_issue_total = metrics["consult_issue"] + metrics["kernel_support"] + metrics["governance_support"]
+        score = sum(metrics.get(k, 0) * weights.get(k, 0) for k in weights)
         
         # 对于多日汇总数据，工作量分基于平均值，更合理
         item = {
@@ -409,18 +409,18 @@ def _build_workload_analysis(
     by_risk = sorted(people, key=lambda x: x["risk_score"], reverse=True)
     
     # 计算总量（注意：对于多日汇总数据，这些是基于平均值的总量）
-    totals = {k: round(sum(p[k] for p in people), 2) for k in weights}
+    totals = {k: round(sum(p.get(k, 0) for p in people), 2) for k in weights}
     totals["daily_issue_total"] = round(sum(p["daily_issue_total"] for p in people), 2)
     totals["risk_score"] = round(sum(p["risk_score"] for p in people), 2)
     totals["encourage_score"] = round(sum(p["encourage_score"] for p in people), 2)
     totals["gaussdb_focus_index"] = round(
-        totals["new_issue_yesterday"] * 1.3
-        + totals["kernel_issue"] * 1.45
-        + totals["governance_issue"] * 1.05
-        + totals["consult_issue"] * 0.9
-        - totals["escalation_help"] * 0.7
-        + totals["wiki_output"] * 1.25
-        + totals["analysis_report_output"] * 1.15,
+        totals.get("new_ticket_yesterday", 0) * 1.3
+        + totals.get("kernel_support", 0) * 1.45
+        + totals.get("governance_support", 0) * 1.05
+        + totals.get("consult_issue", 0) * 0.9
+        - totals.get("escalation_help", 0) * 0.7
+        + totals.get("ticket_demand_output", 0) * 1.25
+        + totals.get("case_summary_output", 0) * 1.15,
         2,
     )
     
@@ -452,10 +452,10 @@ def _build_workload_analysis(
             "description": "聚焦现网问题承压、内核问题处理与知识沉淀能力，透传求助作为负向项。",
             "index": totals["gaussdb_focus_index"],
             "highlights": [
-                f"内核问题总量: {totals['kernel_issue']}",
-                f"昨日新增问题总量: {totals['new_issue_yesterday']}",
-                f"wiki+分析报告产出: {round(totals['wiki_output'] + totals['analysis_report_output'], 2)}",
-                f"透传求助总量: {totals['escalation_help']}",
+                f"内核技术支持总量: {totals.get('kernel_support', 0)}",
+                f"昨日新增工单总量: {totals.get('new_ticket_yesterday', 0)}",
+                f"提单/需求+案例总结产出: {round(totals.get('ticket_demand_output', 0) + totals.get('case_summary_output', 0), 2)}",
+                f"透传求助总量: {totals.get('escalation_help', 0)}",
             ],
         },
     }
@@ -887,17 +887,17 @@ async def upload_excel(
                             "id": mapping_row[0],
                             "mapping_name": mapping_row[1],
                             "name_aliases": mapping_row[2],
-                            "oncall_open_aliases": mapping_row[3],
-                            "pending_ticket_aliases": mapping_row[4],
-                            "new_issue_yesterday_aliases": mapping_row[5],
-                            "governance_issue_aliases": mapping_row[6],
-                            "kernel_issue_aliases": mapping_row[7],
-                            "consult_issue_aliases": mapping_row[8],
-                            "escalation_help_aliases": mapping_row[9],
-                            "issue_ticket_output_aliases": mapping_row[10],
-                            "requirement_ticket_output_aliases": mapping_row[11],
-                            "wiki_output_aliases": mapping_row[12],
-                            "analysis_report_output_aliases": mapping_row[13],
+                            "workload_count_aliases": mapping_row[3] if len(mapping_row) > 3 else [],
+                            "oncall_open_aliases": mapping_row[4] if len(mapping_row) > 4 else [],
+                            "pending_ticket_aliases": mapping_row[5] if len(mapping_row) > 5 else [],
+                            "new_ticket_yesterday_aliases": mapping_row[6] if len(mapping_row) > 6 else [],
+                            "consult_issue_aliases": mapping_row[7] if len(mapping_row) > 7 else [],
+                            "kernel_support_aliases": mapping_row[8] if len(mapping_row) > 8 else [],
+                            "governance_support_aliases": mapping_row[9] if len(mapping_row) > 9 else [],
+                            "escalation_help_aliases": mapping_row[10] if len(mapping_row) > 10 else [],
+                            "irregular_ticket_aliases": mapping_row[11] if len(mapping_row) > 11 else [],
+                            "ticket_demand_output_aliases": mapping_row[12] if len(mapping_row) > 12 else [],
+                            "case_summary_output_aliases": mapping_row[13] if len(mapping_row) > 13 else [],
                         }
                         column_aliases = _get_column_aliases_from_config(mapping_config)
                         mapping_name = mapping_row[1]
@@ -1601,10 +1601,10 @@ async def list_column_mappings() -> JSONResponse:
                 cur.execute(
                     sql.SQL("""
                     SELECT id, mapping_name, is_default, created_at, updated_at,
-                        name_aliases, oncall_open_aliases, pending_ticket_aliases,
-                        new_issue_yesterday_aliases, governance_issue_aliases, kernel_issue_aliases,
-                        consult_issue_aliases, escalation_help_aliases, issue_ticket_output_aliases,
-                        requirement_ticket_output_aliases, wiki_output_aliases, analysis_report_output_aliases
+                        name_aliases, workload_count_aliases, oncall_open_aliases, pending_ticket_aliases,
+                        new_ticket_yesterday_aliases, consult_issue_aliases, kernel_support_aliases,
+                        governance_support_aliases, escalation_help_aliases, irregular_ticket_aliases,
+                        ticket_demand_output_aliases, case_summary_output_aliases
                     FROM {}
                     ORDER BY is_default DESC, updated_at DESC
                     """).format(sql.Identifier(COLUMN_MAPPING_TABLE))
@@ -1620,17 +1620,17 @@ async def list_column_mappings() -> JSONResponse:
                         "updated_at": r[4].isoformat() if r[4] else None,
                         "aliases": {
                             "name": parse_json_value(r[5]) or [],
-                            "oncall_open": parse_json_value(r[6]) or [],
-                            "pending_ticket": parse_json_value(r[7]) or [],
-                            "new_issue_yesterday": parse_json_value(r[8]) or [],
-                            "governance_issue": parse_json_value(r[9]) or [],
-                            "kernel_issue": parse_json_value(r[10]) or [],
-                            "consult_issue": parse_json_value(r[11]) or [],
-                            "escalation_help": parse_json_value(r[12]) or [],
-                            "issue_ticket_output": parse_json_value(r[13]) or [],
-                            "requirement_ticket_output": parse_json_value(r[14]) or [],
-                            "wiki_output": parse_json_value(r[15]) or [],
-                            "analysis_report_output": parse_json_value(r[16]) or [],
+                            "workload_count": parse_json_value(r[6]) if len(r) > 6 else [],
+                            "oncall_open": parse_json_value(r[7]) if len(r) > 7 else [],
+                            "pending_ticket": parse_json_value(r[8]) if len(r) > 8 else [],
+                            "new_ticket_yesterday": parse_json_value(r[9]) if len(r) > 9 else [],
+                            "consult_issue": parse_json_value(r[10]) if len(r) > 10 else [],
+                            "kernel_support": parse_json_value(r[11]) if len(r) > 11 else [],
+                            "governance_support": parse_json_value(r[12]) if len(r) > 12 else [],
+                            "escalation_help": parse_json_value(r[13]) if len(r) > 13 else [],
+                            "irregular_ticket": parse_json_value(r[14]) if len(r) > 14 else [],
+                            "ticket_demand_output": parse_json_value(r[15]) if len(r) > 15 else [],
+                            "case_summary_output": parse_json_value(r[16]) if len(r) > 16 else [],
                         }
                     })
     except Exception as e:
@@ -1667,67 +1667,66 @@ async def save_column_mapping(req: SaveColumnMappingRequest) -> JSONResponse:
                 existing = cur.fetchone()
                 
                 if existing:
-                    # 更新现有配置
+                    # 更新现有配置（新格式）
                     cur.execute(
                         sql.SQL("""
                         UPDATE {} SET
                             name_aliases = %s,
+                            workload_count_aliases = %s,
                             oncall_open_aliases = %s,
                             pending_ticket_aliases = %s,
-                            new_issue_yesterday_aliases = %s,
-                            governance_issue_aliases = %s,
-                            kernel_issue_aliases = %s,
+                            new_ticket_yesterday_aliases = %s,
                             consult_issue_aliases = %s,
+                            kernel_support_aliases = %s,
+                            governance_support_aliases = %s,
                             escalation_help_aliases = %s,
-                            issue_ticket_output_aliases = %s,
-                            requirement_ticket_output_aliases = %s,
-                            wiki_output_aliases = %s,
-                            analysis_report_output_aliases = %s,
+                            irregular_ticket_aliases = %s,
+                            ticket_demand_output_aliases = %s,
+                            case_summary_output_aliases = %s,
                             updated_at = NOW()
                         WHERE id = %s
                         """).format(sql.Identifier(COLUMN_MAPPING_TABLE)),
                         (
                             json.dumps(req.name_aliases),
+                            json.dumps(req.workload_count_aliases),
                             json.dumps(req.oncall_open_aliases),
                             json.dumps(req.pending_ticket_aliases),
-                            json.dumps(req.new_issue_yesterday_aliases),
-                            json.dumps(req.governance_issue_aliases),
-                            json.dumps(req.kernel_issue_aliases),
+                            json.dumps(req.new_ticket_yesterday_aliases),
                             json.dumps(req.consult_issue_aliases),
+                            json.dumps(req.kernel_support_aliases),
+                            json.dumps(req.governance_support_aliases),
                             json.dumps(req.escalation_help_aliases),
-                            json.dumps(req.issue_ticket_output_aliases),
-                            json.dumps(req.requirement_ticket_output_aliases),
-                            json.dumps(req.wiki_output_aliases),
-                            json.dumps(req.analysis_report_output_aliases),
+                            json.dumps(req.irregular_ticket_aliases),
+                            json.dumps(req.ticket_demand_output_aliases),
+                            json.dumps(req.case_summary_output_aliases),
                             existing[0]
                         )
                     )
                     mapping_id = existing[0]
                 else:
-                    # 创建新配置
+                    # 创建新配置（新格式）
                     cur.execute(
                         sql.SQL("""
-                        INSERT INTO {} (mapping_name, name_aliases, oncall_open_aliases, pending_ticket_aliases,
-                            new_issue_yesterday_aliases, governance_issue_aliases, kernel_issue_aliases, consult_issue_aliases,
-                            escalation_help_aliases, issue_ticket_output_aliases, requirement_ticket_output_aliases,
-                            wiki_output_aliases, analysis_report_output_aliases)
+                        INSERT INTO {} (mapping_name, name_aliases, workload_count_aliases, oncall_open_aliases, pending_ticket_aliases,
+                            new_ticket_yesterday_aliases, consult_issue_aliases, kernel_support_aliases, governance_support_aliases,
+                            escalation_help_aliases, irregular_ticket_aliases, ticket_demand_output_aliases, case_summary_output_aliases)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                         """).format(sql.Identifier(COLUMN_MAPPING_TABLE)),
                         (
                             req.mapping_name,
                             json.dumps(req.name_aliases),
+                            json.dumps(req.workload_count_aliases),
                             json.dumps(req.oncall_open_aliases),
                             json.dumps(req.pending_ticket_aliases),
-                            json.dumps(req.new_issue_yesterday_aliases),
-                            json.dumps(req.governance_issue_aliases),
-                            json.dumps(req.kernel_issue_aliases),
+                            json.dumps(req.new_ticket_yesterday_aliases),
                             json.dumps(req.consult_issue_aliases),
+                            json.dumps(req.kernel_support_aliases),
+                            json.dumps(req.governance_support_aliases),
                             json.dumps(req.escalation_help_aliases),
-                            json.dumps(req.issue_ticket_output_aliases),
-                            json.dumps(req.requirement_ticket_output_aliases),
-                            json.dumps(req.wiki_output_aliases),
-                            json.dumps(req.analysis_report_output_aliases),
+                            json.dumps(req.irregular_ticket_aliases),
+                            json.dumps(req.ticket_demand_output_aliases),
+                            json.dumps(req.case_summary_output_aliases),
                         )
                     )
                     mapping_id = cur.fetchone()[0]
@@ -1788,17 +1787,17 @@ async def suggest_column_mapping() -> JSONResponse:
         "default_aliases": DEFAULT_COLUMN_ALIASES,
         "alias_labels": {
             "name": "姓名列",
-            "oncall_open": "oncall未闭环",
-            "pending_ticket": "待处理工单",
-            "new_issue_yesterday": "昨日新增问题",
-            "governance_issue": "管控问题",
-            "kernel_issue": "内核问题",
+            "workload_count": "接单数工作量",
+            "oncall_open": "未闭环oncall接单",
+            "pending_ticket": "名下待处理工单",
+            "new_ticket_yesterday": "昨日新增工单",
             "consult_issue": "咨询问题",
-            "escalation_help": "透传求助",
-            "issue_ticket_output": "问题单产出",
-            "requirement_ticket_output": "需求单产出",
-            "wiki_output": "wiki产出",
-            "analysis_report_output": "分析报告产出",
+            "kernel_support": "内核技术支持",
+            "governance_support": "管控技术支持",
+            "escalation_help": "透传问题",
+            "irregular_ticket": "不规范走单",
+            "ticket_demand_output": "提单/需求数量",
+            "case_summary_output": "案例总结数量",
         }
     })
 

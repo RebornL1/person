@@ -127,32 +127,30 @@
     // 标准列名映射（用于工作量分析）
     const STANDARD_COLUMNS = {
       name: "姓名",
-      oncall_open: "oncall未闭环",
+      oncall_open: "未闭环oncall",
       pending_ticket: "待处理工单",
-      new_issue_yesterday: "昨日新增问题",
-      governance_issue: "管控问题",
-      kernel_issue: "内核问题",
+      new_ticket_yesterday: "昨日新增工单",
+      kernel_support: "内核支持",
+      governance_support: "管控支持",
       consult_issue: "咨询问题",
-      escalation_help: "透传求助",
-      issue_ticket_output: "问题单产出",
-      requirement_ticket_output: "需求单产出",
-      wiki_output: "wiki产出",
-      analysis_report_output: "分析报告产出"
+      escalation_help: "透传问题",
+      irregular_ticket: "不规范走单",
+      ticket_demand_output: "提单/需求",
+      case_summary_output: "案例总结"
     };
     
     const charts = {};
     const WEIGHT_LABELS = {
-      oncall_open: "oncall未闭环",
-      pending_ticket: "待处理工单",
-      new_issue_yesterday: "昨日新增问题",
-      governance_issue: "管控问题",
-      kernel_issue: "内核问题",
+      oncall_open: "未闭环oncall接单(累加)",
+      pending_ticket: "名下待处理工单(累加)",
+      new_ticket_yesterday: "昨日新增工单(当日)",
+      kernel_support: "内核技术支持",
+      governance_support: "管控技术支持",
       consult_issue: "咨询问题",
-      escalation_help: "透传求助(负向建议为负数)",
-      issue_ticket_output: "问题单产出",
-      requirement_ticket_output: "需求单产出",
-      wiki_output: "wiki产出",
-      analysis_report_output: "分析报告产出",
+      escalation_help: "透传问题(负向)",
+      irregular_ticket: "不规范走单(负向)",
+      ticket_demand_output: "提单/需求产出(正向)",
+      case_summary_output: "案例总结产出(正向)",
     };
     let currentAnalysis = null;
     let latestAllRows = [];
@@ -160,34 +158,35 @@
     let currentMappingId = null;
     let savedMappings = [];
 
-    // 示例数据（内置）
+    // 示例数据（内置，新格式）
     const SAMPLE_DATA = {
-      columns: ["姓名", "oncall接单未闭环的数量", "名下的待处理工单数", "昨日新增多少个问题", 
-                "多少个管控的问题", "多少个内核的问题", "多少个咨询问题", "透传求助了多少个",
-                "问题单数量", "需求单数量", "wiki输出数量", "问题分析报告数量"],
+      columns: ["名称", "接单数工作量", "参会情况", "未闭环oncall接单数", "名下待处理工单数", "昨日新增工单数", 
+                "咨询问题", "内核技术支持", "管控技术支持", "透传问题数量", "不规范走单数量",
+                "昨日提单/需求数量", "昨日案例总结数量", "案例/提单记录", "今日风险问题/交接"],
       rows: [
-        {"姓名": "张三", "oncall接单未闭环的数量": 3, "名下的待处理工单数": 5, "昨日新增多少个问题": 2, 
-         "多少个管控的问题": 1, "多少个内核的问题": 2, "多少个咨询问题": 1, "透传求助了多少个": 1,
-         "问题单数量": 2, "需求单数量": 1, "wiki输出数量": 3, "问题分析报告数量": 1},
-        {"姓名": "李四", "oncall接单未闭环的数量": 2, "名下的待处理工单数": 3, "昨日新增多少个问题": 1,
-         "多少个管控的问题": 2, "多少个内核的问题": 1, "多少个咨询问题": 2, "透传求助了多少个": 2,
-         "问题单数量": 1, "需求单数量": 2, "wiki输出数量": 2, "问题分析报告数量": 0},
-        {"姓名": "王五", "oncall接单未闭环的数量": 5, "名下的待处理工单数": 8, "昨日新增多少个问题": 3,
-         "多少个管控的问题": 1, "多少个内核的问题": 3, "多少个咨询问题": 0, "透传求助了多少个": 4,
-         "问题单数量": 0, "需求单数量": 1, "wiki输出数量": 1, "问题分析报告数量": 0},
-        {"姓名": "赵六", "oncall接单未闭环的数量": 1, "名下的待处理工单数": 2, "昨日新增多少个问题": 0,
-         "多少个管控的问题": 0, "多少个内核的问题": 1, "多少个咨询问题": 3, "透传求助了多少个": 0,
-         "问题单数量": 3, "需求单数量": 2, "wiki输出数量": 5, "问题分析报告数量": 2},
-        {"姓名": "陈七", "oncall接单未闭环的数量": 4, "名下的待处理工单数": 6, "昨日新增多少个问题": 2,
-         "多少个管控的问题": 2, "多少个内核的问题": 2, "多少个咨询问题": 1, "透传求助了多少个": 3,
-         "问题单数量": 1, "需求单数量": 0, "wiki输出数量": 2, "问题分析报告数量": 1}
+        {"名称": "张三", "接单数工作量": 12, "参会情况": "已参会", "未闭环oncall接单数": 3, "名下待处理工单数": 5, "昨日新增工单数": 2, 
+         "咨询问题": 1, "内核技术支持": 2, "管控技术支持": 1, "透传问题数量": 1, "不规范走单数量": 0,
+         "昨日提单/需求数量": 2, "昨日案例总结数量": 1, "案例/提单记录": "https://example.com/case1", "今日风险问题/交接": ""},
+        {"名称": "李四", "接单数工作量": 8, "参会情况": "迟到", "未闭环oncall接单数": 2, "名下待处理工单数": 3, "昨日新增工单数": 1,
+         "咨询问题": 2, "内核技术支持": 1, "管控技术支持": 2, "透传问题数量": 2, "不规范走单数量": 1,
+         "昨日提单/需求数量": 1, "昨日案例总结数量": 2, "案例/提单记录": "", "今日风险问题/交接": "需跟进内核问题"},
+        {"名称": "王五", "接单数工作量": 18, "参会情况": "已参会", "未闭环oncall接单数": 5, "名下待处理工单数": 8, "昨日新增工单数": 3,
+         "咨询问题": 0, "内核技术支持": 3, "管控技术支持": 1, "透传问题数量": 4, "不规范走单数量": 2,
+         "昨日提单/需求数量": 0, "昨日案例总结数量": 1, "案例/提单记录": "https://example.com/case2", "今日风险问题/交接": ""},
+        {"名称": "赵六", "接单数工作量": 6, "参会情况": "已参会", "未闭环oncall接单数": 1, "名下待处理工单数": 2, "昨日新增工单数": 0,
+         "咨询问题": 3, "内核技术支持": 1, "管控技术支持": 0, "透传问题数量": 0, "不规范走单数量": 0,
+         "昨日提单/需求数量": 3, "昨日案例总结数量": 2, "案例/提单记录": "https://example.com/case3,https://example.com/case4", "今日风险问题/交接": ""},
+        {"名称": "陈七", "接单数工作量": 14, "参会情况": "调休", "未闭环oncall接单数": 4, "名下待处理工单数": 6, "昨日新增工单数": 2,
+         "咨询问题": 1, "内核技术支持": 2, "管控技术支持": 2, "透传问题数量": 3, "不规范走单数量": 1,
+         "昨日提单/需求数量": 1, "昨日案例总结数量": 0, "案例/提单记录": "", "今日风险问题/交接": ""}
       ]
     };
 
     const ALIAS_KEYS = [
-      "name", "oncall_open", "pending_ticket", "new_issue_yesterday",
-      "governance_issue", "kernel_issue", "consult_issue", "escalation_help",
-      "issue_ticket_output", "requirement_ticket_output", "wiki_output", "analysis_report_output"
+      "name", "workload_count", "oncall_open", "pending_ticket", "new_ticket_yesterday",
+      "consult_issue", "kernel_support", "governance_support",
+      "escalation_help", "irregular_ticket",
+      "ticket_demand_output", "case_summary_output"
     ];
 
     // ========== 列映射配置功能 ==========
@@ -1604,17 +1603,17 @@
       }
       document.getElementById("person-table").innerHTML =
         "<thead><tr>" +
-        "<th>工作量排名</th><th>姓名</th><th>综合工作量分</th><th>风险等级</th><th>透传排序</th><th>透传求助</th>" +
-        "<th>昨日新增问题</th><th>每日问题数量</th><th>管控</th><th>内核</th><th>咨询</th>" +
-        "<th>oncall未闭环</th><th>待处理工单</th><th>问题单</th><th>需求单</th><th>wiki</th><th>分析报告</th>" +
+        "<th>工作量排名</th><th>姓名</th><th>综合工作量分</th><th>风险等级</th><th>透传排序</th><th>透传问题</th>" +
+        "<th>昨日新增工单</th><th>每日问题数量</th><th>管控支持</th><th>内核支持</th><th>咨询问题</th>" +
+        "<th>未闭环oncall</th><th>待处理工单</th><th>提单/需求</th><th>案例总结</th>" +
         "</tr></thead><tbody>" +
         people
           .map(
             (p) =>
               "<tr>" +
               `<td>${p.workload_rank}</td><td>${escapeHtml(p.name)}</td><td>${fmt(p.workload_score)}</td><td>${escapeHtml(p.risk_level)}</td><td>${transRankMap[p.name] || "-"}</td><td>${fmt(p.escalation_help)}</td>` +
-              `<td>${fmt(p.new_issue_yesterday)}</td><td>${fmt(p.daily_issue_total)}</td><td>${fmt(p.governance_issue)}</td><td>${fmt(p.kernel_issue)}</td><td>${fmt(p.consult_issue)}</td>` +
-              `<td>${fmt(p.oncall_open)}</td><td>${fmt(p.pending_ticket)}</td><td>${fmt(p.issue_ticket_output)}</td><td>${fmt(p.requirement_ticket_output)}</td><td>${fmt(p.wiki_output)}</td><td>${fmt(p.analysis_report_output)}</td>` +
+              `<td>${fmt(p.new_ticket_yesterday)}</td><td>${fmt(p.daily_issue_total)}</td><td>${fmt(p.governance_support)}</td><td>${fmt(p.kernel_support)}</td><td>${fmt(p.consult_issue)}</td>` +
+              `<td>${fmt(p.oncall_open)}</td><td>${fmt(p.pending_ticket)}</td><td>${fmt(p.ticket_demand_output)}</td><td>${fmt(p.case_summary_output)}</td>` +
               "</tr>"
           )
           .join("") +
@@ -1682,10 +1681,71 @@
         prev.innerHTML = "<tbody><tr><td>无数据行</td></tr></tbody>";
       } else {
         const cols = data.columns;
+        
+        // 渲染单元格内容，根据列名应用特殊样式
+        function renderCell(col, value) {
+          const safeValue = escapeHtml(value || "");
+          const colLower = col.toLowerCase();
+          
+          // 1. 参会情况 - 使用badge样式
+          if (colLower.includes("参会情况") || colLower.includes("参会")) {
+            const badgeClass = getAttendanceBadgeClass(value);
+            return `<span class="attendance-badge ${badgeClass}">${safeValue || '未填写'}</span>`;
+          }
+          
+          // 2. 案例/提单记录 - 链接形式
+          if (colLower.includes("案例") || colLower.includes("提单记录") || colLower.includes("记录")) {
+            // 如果包含链接格式（如 http:// 或 https://）
+            if (value && (value.includes("http://") || value.includes("https://"))) {
+              // 尝试解析链接（格式可能是："标题:http://..." 或 直接是链接）
+              const parts = value.split(/[,;|\n]/).filter(p => p.trim());
+              const links = parts.map(part => {
+                const match = part.match(/(https?:\/\/[^\s]+)/);
+                if (match) {
+                  const url = match[1];
+                  const title = part.replace(url, '').trim() || url;
+                  return `<a href="${escapeHtml(url)}" target="_blank" class="case-link">${escapeHtml(title)}</a>`;
+                }
+                return escapeHtml(part);
+              });
+              return links.join('<br>');
+            }
+            return safeValue || '-';
+          }
+          
+          // 3. 今日风险问题/交接 - 高亮显示
+          if (colLower.includes("风险") || colLower.includes("交接")) {
+            if (value && value.trim()) {
+              return `<span class="risk-highlight">${safeValue}</span>`;
+            }
+            return `<span class="no-risk">无</span>`;
+          }
+          
+          // 4. 其他说明类字段 - 普通文本
+          if (colLower.includes("说明") || colLower.includes("事务") || colLower.includes("其他")) {
+            return safeValue || '-';
+          }
+          
+          // 默认渲染
+          return safeValue;
+        }
+        
+        // 参会情况的badge颜色映射
+        function getAttendanceBadgeClass(value) {
+          if (!value) return "badge-muted";
+          const v = value.toLowerCase();
+          if (v.includes("已参会") || v === "参会") return "badge-good";
+          if (v.includes("迟到")) return "badge-warn";
+          if (v.includes("调休")) return "badge-muted";
+          if (v.includes("请假一周") || v.includes("请假几周") || v.includes("请假")) return "badge-danger";
+          if (v.includes("未参会")) return "badge-danger";
+          return "badge-muted";
+        }
+        
         prev.innerHTML =
           "<thead><tr>" + cols.map((c) => "<th>" + escapeHtml(c) + "</th>").join("") + "</tr></thead><tbody>" +
           data.preview_rows
-            .map((row) => "<tr>" + cols.map((c) => "<td>" + escapeHtml(row[c]) + "</td>").join("") + "</tr>")
+            .map((row) => "<tr>" + cols.map((c) => "<td>" + renderCell(c, row[c]) + "</td>").join("") + "</tr>")
             .join("") +
           "</tbody>";
       }
@@ -2450,32 +2510,30 @@
           all_rows_truncated: false,
           workload_analysis: {
             weights: {
-              oncall_open: 0.5,
-              pending_ticket: 0.4,
-              new_issue_yesterday: 0.8,
-              governance_issue: 0.3,
-              kernel_issue: 0.35,
-              consult_issue: 0.25,
-              escalation_help: -0.2,
-              issue_ticket_output: 0.6,
-              requirement_ticket_output: 0.5,
-              wiki_output: 0.4,
-              analysis_report_output: 0.7
+              oncall_open: 0.9,
+              pending_ticket: 0.8,
+              new_ticket_yesterday: 1.4,
+              consult_issue: 0.85,
+              kernel_support: 1.35,
+              governance_support: 1.0,
+              escalation_help: -0.6,
+              irregular_ticket: -0.3,
+              ticket_demand_output: 1.25,
+              case_summary_output: 1.3
             },
             people: SAMPLE_DATA.rows.map(row => ({
-              name: row["姓名"],
-              oncall_open: row["oncall接单未闭环的数量"] || 0,
-              pending_ticket: row["名下的待处理工单数"] || 0,
-              new_issue_yesterday: row["昨日新增多少个问题"] || 0,
-              governance_issue: row["多少个管控的问题"] || 0,
-              kernel_issue: row["多少个内核的问题"] || 0,
-              consult_issue: row["多少个咨询问题"] || 0,
-              escalation_help: row["透传求助了多少个"] || 0,
-              issue_ticket_output: row["问题单数量"] || 0,
-              requirement_ticket_output: row["需求单数量"] || 0,
-              wiki_output: row["wiki输出数量"] || 0,
-              analysis_report_output: row["问题分析报告数量"] || 0,
-              daily_issue_total: row["多少个管控的问题"] + row["多少个内核的问题"] + row["多少个咨询问题"]
+              name: row["名称"],
+              oncall_open: row["未闭环oncall接单数"] || 0,
+              pending_ticket: row["名下待处理工单数"] || 0,
+              new_ticket_yesterday: row["昨日新增工单数"] || 0,
+              consult_issue: row["咨询问题"] || 0,
+              kernel_support: row["内核技术支持"] || 0,
+              governance_support: row["管控技术支持"] || 0,
+              escalation_help: row["透传问题数量"] || 0,
+              irregular_ticket: row["不规范走单数量"] || 0,
+              ticket_demand_output: row["昨日提单/需求数量"] || 0,
+              case_summary_output: row["昨日案例总结数量"] || 0,
+              daily_issue_total: (row["咨询问题"] || 0) + (row["内核技术支持"] || 0) + (row["管控技术支持"] || 0)
             }))
           }
         };
@@ -2486,15 +2544,14 @@
           p.workload_score = (
             p.oncall_open * w.oncall_open +
             p.pending_ticket * w.pending_ticket +
-            p.new_issue_yesterday * w.new_issue_yesterday +
-            p.governance_issue * w.governance_issue +
-            p.kernel_issue * w.kernel_issue +
+            p.new_ticket_yesterday * w.new_ticket_yesterday +
             p.consult_issue * w.consult_issue +
+            p.kernel_support * w.kernel_support +
+            p.governance_support * w.governance_support +
             p.escalation_help * w.escalation_help +
-            p.issue_ticket_output * w.issue_ticket_output +
-            p.requirement_ticket_output * w.requirement_ticket_output +
-            p.wiki_output * w.wiki_output +
-            p.analysis_report_output * w.analysis_report_output
+            p.irregular_ticket * w.irregular_ticket +
+            p.ticket_demand_output * w.ticket_demand_output +
+            p.case_summary_output * w.case_summary_output
           ).toFixed(2);
           // 计算风险等级
           const riskScore = p.escalation_help * 1.2 + p.pending_ticket * 0.7 + p.oncall_open * 0.65;
@@ -2539,10 +2596,10 @@
 
     async function downloadTemplate() {
       const templateContent = [
-        "姓名,oncall接单未闭环的数量,名下的待处理工单数,昨日新增多少个问题,多少个管控的问题,多少个内核的问题,多少个咨询问题,透传求助了多少个,问题单数量,需求单数量,wiki输出数量,问题分析报告数量",
-        "张三,3,5,2,1,2,1,1,2,1,3,1",
-        "李四,2,3,1,2,1,2,2,1,2,2,0",
-        "王五,5,8,3,1,3,0,4,0,1,1,0"
+        "名称,接单数工作量,参会情况,日期,未闭环oncall接单数,名下待处理工单数,昨日新增工单数,咨询问题,内核技术支持,管控技术支持,透传问题数量,不规范走单数量,昨日提单/需求数量,昨日案例总结数量,案例/提单记录,昨日公共事务,昨日其他说明,今日风险问题/交接",
+        "张三,12,已参会,2026-04-23,3,5,2,1,2,1,1,0,2,1,https://example.com/case1,,",
+        "李四,8,迟到,2026-04-23,2,3,1,2,1,2,2,1,1,2,,需跟进内核问题,",
+        "王五,18,已参会,2026-04-23,5,8,3,0,3,1,4,2,0,1,https://example.com/case2,,"
       ].join("\n");
       
       const blob = new Blob([templateContent], { type: "text/csv;charset=utf-8;" });
