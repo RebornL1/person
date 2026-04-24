@@ -798,7 +798,33 @@
       min-height: 250px;
       transition: transform 0.3s;
     }
+    
+    /* 双图表卡片布局（汇总+平均并排显示） */
+    .chart-card-pair {
+      display: flex;
+      flex-direction: column;
+    }
+    .chart-card-pair .chart-pair-wrap {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .chart-card-pair .chart-wrap-half {
+      position: relative;
+      flex: 1;
+      min-width: 280px;
+      height: clamp(200px, 25vw, 300px);
+      min-height: 180px;
+    }
+    .chart-card-pair .chart-wrap-half h4 {
+      margin: 0 0 0.5rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 500;
+      text-align: center;
+    }
     .chart-card:hover .chart-wrap { transform: scale(1.01); }
+    .chart-card-pair:hover .chart-wrap-half { transform: scale(1.01); }
     /* 图表卡片交错动画 */
     .chart-grid .chart-card:nth-child(1) { animation: chartSlideIn 0.6s 0.1s ease-out both; }
     .chart-grid .chart-card:nth-child(2) { animation: chartSlideIn 0.6s 0.2s ease-out both; }

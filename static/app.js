@@ -1844,11 +1844,39 @@
       
       console.log("Final chartTypeConfig:", chartTypeConfig);
       
+      // 检测是否为多日汇总数据（包含"_平均"后缀的列）
+      const isMultiDateSummary = columns.some(col => col.includes("_平均") || col.includes("_平均值"));
+      
       // 过滤出需要展示图表的列（chartType不是table和none）
-      const chartColumns = columns.filter(col => {
-        const chartType = chartTypeConfig[col];
-        return chartType && chartType !== "table" && chartType !== "none";
-      });
+      // 对于多日汇总数据，将汇总列和平均列配对，只渲染汇总列（平均列作为第二图表显示在同一卡片）
+      let chartColumns = [];
+      let pairedColumns = {}; // {汇总列: 平均列}
+      
+      if (isMultiDateSummary) {
+        // 多日汇总数据：识别汇总列和平均列的配对关系
+        columns.forEach(col => {
+          const chartType = chartTypeConfig[col];
+          if (chartType && chartType !== "table" && chartType !== "none") {
+            if (col.includes("_平均")) {
+              // 这是平均列，记录配对关系
+              const baseCol = col.replace("_平均", "");
+              if (!pairedColumns[baseCol]) {
+                pairedColumns[baseCol] = col;
+              }
+            } else {
+              // 这是汇总列（或其他非平均列）
+              chartColumns.push(col);
+            }
+          }
+        });
+        console.log("多日汇总数据，配对列:", pairedColumns);
+      } else {
+        // 非多日汇总数据，直接过滤
+        chartColumns = columns.filter(col => {
+          const chartType = chartTypeConfig[col];
+          return chartType && chartType !== "table" && chartType !== "none";
+        });
+      }
       
       // 过滤出需要展示表格的列
       const tableColumns = columns.filter(col => {
@@ -1877,19 +1905,37 @@
           console.log(`渲染第 ${idx} 个图表: 列名="${col}", 图表类型="${chartTypeConfig[col]}"`);
           const chartType = chartTypeConfig[col] || "bar";
           const displayName = displayNameConfig[col] || col;
-          const canvasId = `custom-chart-${idx}`;
           
-          // 检查数据是否为数值型（宽松判断）
-          const numericValues = rows.filter(row => row[col] !== "" && row[col] !== null).map(row => parseFloat(row[col]));
-          const isNumeric = numericValues.length > 0 && numericValues.every(v => !isNaN(v));
-          
-          console.log(`列 ${col} isNumeric=${isNumeric}, numericValues count=${numericValues.length}`);
+          // 检查是否有配对的平均列
+          const avgCol = pairedColumns[col];
+          const avgDisplayName = avgCol ? (displayNameConfig[avgCol] || avgCol) : null;
           
           // 创建图表卡片
           const chartCard = document.createElement("div");
-          chartCard.className = "chart-card";
-          chartCard.innerHTML = `<h3>${escapeHtml(displayName)}</h3><div class="chart-wrap"><canvas id="${canvasId}"></canvas></div>`;
-          customChartsGrid.appendChild(chartCard);
+          
+          if (avgCol && isMultiDateSummary) {
+            // 多日汇总数据：创建双图表卡片（汇总+平均并排显示）
+            chartCard.className = "chart-card chart-card-pair";
+            chartCard.innerHTML = `
+              <h3>${escapeHtml(displayName)}</h3>
+              <div class="chart-pair-wrap">
+                <div class="chart-wrap-half">
+                  <h4>汇总值</h4>
+                  <canvas id="custom-chart-${idx}-sum"></canvas>
+                </div>
+                <div class="chart-wrap-half">
+                  <h4>日均值</h4>
+                  <canvas id="custom-chart-${idx}-avg"></canvas>
+                </div>
+              </div>
+            `;
+            customChartsGrid.appendChild(chartCard);
+          } else {
+            // 单图表卡片
+            chartCard.className = "chart-card";
+            chartCard.innerHTML = `<h3>${escapeHtml(displayName)}</h3><div class="chart-wrap"><canvas id="custom-chart-${idx}"></canvas></div>`;
+            customChartsGrid.appendChild(chartCard);
+          }
         
         // 查找姓名列
         const nameCol = columns.find(c => 
@@ -1901,45 +1947,52 @@
         
         console.log(`图表 ${col} 的姓名列: ${nameCol || '未找到'}`);
         
-        // 准备数据和标签
-        let labels, data;
-        
-        if (isNumeric && rows.length > 0) {
-          // 数值型数据
-          if (nameCol) {
-            // 按姓名分组统计
-            const dataByPerson = {};
-            rows.forEach(row => {
-              const name = row[nameCol] || "未知";
-              const value = parseFloat(row[col]) || 0;
-              if (!dataByPerson[name]) dataByPerson[name] = 0;
-              dataByPerson[name] += value;
-            });
-            labels = Object.keys(dataByPerson);
-            data = Object.values(dataByPerson);
-          } else {
-            // 没有姓名列，使用行号作为标签
-            labels = rows.map((row, i) => `${i + 1}`);
-            data = rows.map(row => parseFloat(row[col]) || 0);
-          }
-          console.log(`数值图表 ${col}: labels=${JSON.stringify(labels)}, data=${JSON.stringify(data)}`);
-        } else {
-          // 文本类型数据，统计分布
-          console.log(`列 ${col} 为文本类型，准备统计分布`);
-          const valueCounts = {};
-          rows.forEach(row => {
-            const value = String(row[col] || "").trim() || "空";
-            if (!valueCounts[value]) valueCounts[value] = 0;
-            valueCounts[value]++;
-          });
+        // 函数：准备图表数据
+        function prepareChartData(column, rows, columns, nameCol) {
+          // 检查数据是否为数值型（宽松判断）
+          const numericValues = rows.filter(row => row[column] !== "" && row[column] !== null).map(row => parseFloat(row[column]));
+          const isNumeric = numericValues.length > 0 && numericValues.every(v => !isNaN(v));
           
-          labels = Object.keys(valueCounts).slice(0, 10);
-          data = labels.map(l => valueCounts[l]);
-          console.log(`文本图表 ${col}: labels=${JSON.stringify(labels)}, data=${JSON.stringify(data)}`);
+          let labels, data;
+          
+          if (isNumeric && rows.length > 0) {
+            // 数值型数据
+            if (nameCol) {
+              // 按姓名分组统计（对于汇总数据，每行已是汇总后的数据，直接使用）
+              const dataByPerson = {};
+              rows.forEach(row => {
+                const name = row[nameCol] || "未知";
+                const value = parseFloat(row[column]) || 0;
+                dataByPerson[name] = value;
+              });
+              labels = Object.keys(dataByPerson);
+              data = Object.values(dataByPerson);
+            } else {
+              // 没有姓名列，使用行号作为标签
+              labels = rows.map((row, i) => `${i + 1}`);
+              data = rows.map(row => parseFloat(row[column]) || 0);
+            }
+          } else {
+            // 文本类型数据，统计分布
+            const valueCounts = {};
+            rows.forEach(row => {
+              const value = String(row[column] || "").trim() || "空";
+              if (!valueCounts[value]) valueCounts[value] = 0;
+              valueCounts[value]++;
+            });
+            
+            labels = Object.keys(valueCounts).slice(0, 10);
+            data = labels.map(l => valueCounts[l]);
+          }
+          
+          return { labels, data, isNumeric };
         }
         
+        // 准备汇总列数据
+        const sumChartData = prepareChartData(col, rows, columns, nameCol);
+        console.log(`数值图表 ${col}: labels=${JSON.stringify(sumChartData.labels)}, data=${JSON.stringify(sumChartData.data)}`);
+        
         // 根据图表类型创建配置
-        let chartConfig;
         const chartColors = [
           themeColors.chartColors.primary,
           themeColors.chartColors.green,
@@ -1951,73 +2004,112 @@
           themeColors.chartColors.amber,
         ];
         
-        if (chartType === "pie") {
-          chartConfig = {
-            type: "pie",
-            data: {
-              labels,
-              datasets: [{
-                data,
-                backgroundColor: labels.map((_, i) => chartColors[i % chartColors.length]),
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { position: "right", labels: { color: themeColors.text } }
+        // 函数：创建图表配置
+        function createChartConfig(chartType, labels, data, displayName, isNumeric, themeColors, chartColors) {
+          let chartConfig;
+          
+          if (chartType === "pie") {
+            chartConfig = {
+              type: "pie",
+              data: {
+                labels,
+                datasets: [{
+                  data,
+                  backgroundColor: labels.map((_, i) => chartColors[i % chartColors.length]),
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { position: "right", labels: { color: themeColors.text } }
+                }
               }
-            }
-          };
-        } else if (chartType === "line") {
-          chartConfig = {
-            type: "line",
-            data: {
-              labels,
-              datasets: [{
-                label: displayName,
-                data,
-                borderColor: themeColors.chartColors.primary,
-                backgroundColor: themeColors.chartColors.primary + "40",
-                fill: true,
-              }]
-            },
-            options: makeCommonOptions(false)
-          };
-        } else {
-          // 默认柱状图
-          chartConfig = {
-            type: "bar",
-            data: {
-              labels,
-              datasets: [{
-                label: displayName,
-                data,
-                backgroundColor: isNumeric ? themeColors.chartColors.primary : labels.map((_, i) => chartColors[i % chartColors.length]),
-              }]
-            },
-            options: makeCommonOptions(false)
-          };
+            };
+          } else if (chartType === "line") {
+            chartConfig = {
+              type: "line",
+              data: {
+                labels,
+                datasets: [{
+                  label: displayName,
+                  data,
+                  borderColor: themeColors.chartColors.primary,
+                  backgroundColor: themeColors.chartColors.primary + "40",
+                  fill: true,
+                }]
+              },
+              options: makeCommonOptions(false)
+            };
+          } else {
+            // 默认柱状图
+            chartConfig = {
+              type: "bar",
+              data: {
+                labels,
+                datasets: [{
+                  label: displayName,
+                  data,
+                  backgroundColor: isNumeric ? themeColors.chartColors.primary : labels.map((_, i) => chartColors[i % chartColors.length]),
+                }]
+              },
+              options: makeCommonOptions(false)
+            };
+          }
+          
+          return chartConfig;
         }
         
         // 使用 setTimeout 确保 DOM 已更新
         setTimeout(() => {
           try {
-            console.log(`尝试创建图表 ${displayName}, canvasId=${canvasId}, chartType=${chartType}`);
-            const canvasEl = document.getElementById(canvasId);
-            console.log(`canvas元素:`, canvasEl ? "找到" : "未找到");
-            console.log(`Chart库:`, typeof Chart !== "undefined" ? "已加载" : "未加载");
-            
-            if (typeof Chart !== "undefined" && canvasEl) {
-              // 先销毁已存在的图表（如果有）
-              const existingChart = charts[`custom_${idx}`];
-              if (existingChart) {
-                existingChart.destroy();
+            if (avgCol && isMultiDateSummary) {
+              // 双图表卡片：创建汇总图和平均图
+              console.log(`创建双图表: 汇总=${col}, 平均=${avgCol}`);
+              
+              // 准备平均列数据
+              const avgChartData = prepareChartData(avgCol, rows, columns, nameCol);
+              
+              // 创建汇总图
+              const sumCanvasId = `custom-chart-${idx}-sum`;
+              const sumCanvasEl = document.getElementById(sumCanvasId);
+              if (typeof Chart !== "undefined" && sumCanvasEl) {
+                const sumConfig = createChartConfig(chartType, sumChartData.labels, sumChartData.data, "汇总值", sumChartData.isNumeric, themeColors, chartColors);
+                charts[`custom_${idx}_sum`] = new Chart(sumCanvasEl, sumConfig);
+                console.log(`汇总图创建成功: ${col}`);
               }
-              charts[`custom_${idx}`] = new Chart(canvasEl, chartConfig);
-              console.log(`图表 ${displayName} 创建成功`);
+              
+              // 创建平均图（使用不同颜色区分）
+              const avgCanvasId = `custom-chart-${idx}-avg`;
+              const avgCanvasEl = document.getElementById(avgCanvasId);
+              if (typeof Chart !== "undefined" && avgCanvasEl) {
+                // 平均图使用绿色主题色区分
+                const avgThemeColors = { ...themeColors };
+                avgThemeColors.chartColors = { ...themeColors.chartColors, primary: themeColors.chartColors.green };
+                const avgConfig = createChartConfig(chartType, avgChartData.labels, avgChartData.data, "日均值", avgChartData.isNumeric, avgThemeColors, chartColors);
+                charts[`custom_${idx}_avg`] = new Chart(avgCanvasEl, avgConfig);
+                console.log(`平均图创建成功: ${avgCol}`);
+              }
             } else {
-              console.error(`Chart库未定义(${typeof Chart})或canvas不存在`);
+              // 单图表卡片
+              const canvasId = `custom-chart-${idx}`;
+              console.log(`尝试创建图表 ${displayName}, canvasId=${canvasId}, chartType=${chartType}`);
+              const canvasEl = document.getElementById(canvasId);
+              console.log(`canvas元素:`, canvasEl ? "找到" : "未找到");
+              console.log(`Chart库:`, typeof Chart !== "undefined" ? "已加载" : "未加载");
+              
+              if (typeof Chart !== "undefined" && canvasEl) {
+                // 先销毁已存在的图表（如果有）
+                const existingChart = charts[`custom_${idx}`];
+                if (existingChart) {
+                  existingChart.destroy();
+                }
+                const singleConfig = createChartConfig(chartType, sumChartData.labels, sumChartData.data, displayName, sumChartData.isNumeric, themeColors, chartColors);
+                charts[`custom_${idx}`] = new Chart(canvasEl, singleConfig);
+                console.log(`图表 ${displayName} 创建成功`);
+              } else {
+                console.error(`Chart库未定义(${typeof Chart})或canvas不存在`);
+              }
             }
           } catch (e) {
             console.error(`渲染图表 ${displayName} 失败:`, e);
